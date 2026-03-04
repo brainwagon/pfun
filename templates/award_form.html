@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Award - {{ race.name }}{% endblock %}
+{% block content %}
+<h1>{{ race.name }} (Round {{ race.round }})</h1>
+<p>{{ race.location }}, {{ race.country }}
+{% if race.sprint %}<span class="badge badge-sprint">Sprint Weekend</span>{% endif %}
+</p>
+
+{% if saved %}
+<div class="alert alert-success">Results saved and points awarded!</div>
+{% endif %}
+
+{% if comparison %}
+<h2>Comparison</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Category</th>
+            <th>Actual</th>
+            {% for player in players %}
+            <th>{{ player }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in comparison %}
+        <tr>
+            <td>{{ row.category }}</td>
+            <td><strong>{{ row.actual_abbr }}</strong>{% if row.actual_abbr and dmap.get(row.actual_abbr) %} - {{ dmap[row.actual_abbr].last_name }}{% endif %}</td>
+            {% for player in players %}
+            {% set info = row.players[player] %}
+            <td class="{% if info.pred %}{% if info.correct %}correct{% else %}incorrect{% endif %}{% endif %}">
+                {{ info.pred }}{% if info.pred and dmap.get(info.pred) %} - {{ dmap[info.pred].last_name }}{% endif %}
+            </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="2"><strong>Total Points</strong></td>
+            {% for player in players %}
+            <td class="score-cell"><strong>{{ preview_scores[player] }}</strong></td>
+            {% endfor %}
+        </tr>
+    </tfoot>
+</table>
+
+<form method="post">
+    {% for cat in categories %}
+    <input type="hidden" name="actual_{{ cat }}" value="{{ actuals_draft.get(cat, '') }}">
+    {% endfor %}
+    <button type="submit" name="confirm" value="1" class="btn btn-confirm">Confirm &amp; Save Points</button>
+    &nbsp;
+    <a href="{{ url_for('award_round', round_num=race.round) }}" class="btn btn-primary">Edit Results</a>
+</form>
+
+{% else %}
+
+<h2>Enter Race Results</h2>
+<form method="post">
+    <div class="player-section" style="max-width: 500px;">
+        {% for cat in categories %}
+        <div class="form-row">
+            <label>{{ cat_labels[cat] }}</label>
+            <select name="actual_{{ cat }}">
+                <option value="">-- Select --</option>
+                {% for d in drivers %}
+                <option value="{{ d.abbreviation }}" {% if existing_actuals.get(cat) == d.abbreviation %}selected{% endif %}>
+                    {{ d.abbreviation }} - {{ d.first_name }} {{ d.last_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endfor %}
+    </div>
+    <br>
+    <button type="submit" class="btn btn-primary">Preview Comparison</button>
+</form>
+
+{% endif %}
+{% endblock %}

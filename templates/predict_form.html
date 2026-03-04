@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Predict - {{ race.name }}{% endblock %}
+{% block content %}
+<h1>{{ race.name }} (Round {{ race.round }})</h1>
+<p>{{ race.location }}, {{ race.country }} &mdash; {{ race.race_time_utc[:10] }}
+{% if race.sprint %}<span class="badge badge-sprint">Sprint Weekend</span>{% endif %}
+</p>
+
+{% if warning %}
+<div class="alert alert-warning">{{ warning }}</div>
+{% endif %}
+
+{% if saved %}
+<div class="alert alert-success">Predictions saved!</div>
+{% endif %}
+
+<form method="post">
+    <table class="predict-table">
+        <thead>
+            <tr>
+                <th>Category</th>
+                {% for player in players %}
+                <th>{{ player }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for cat in categories %}
+            <tr>
+                <td class="cat-label">{{ cat_labels[cat] }}</td>
+                {% for player in players %}
+                <td>
+                    <select name="{{ player }}_{{ cat }}">
+                        <option value="">-- Select --</option>
+                        {% for d in drivers %}
+                        <option value="{{ d.abbreviation }}" {% if existing.get(player, {}).get(cat) == d.abbreviation %}selected{% endif %}>
+                            {{ d.abbreviation }} - {{ d.first_name }} {{ d.last_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <button type="submit" class="btn btn-primary">Save Predictions</button>
+</form>
+{% endblock %}

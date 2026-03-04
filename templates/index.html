@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Standings{% endblock %}
+{% block content %}
+<h1>2026 Season Standings</h1>
+
+<div class="totals">
+    {% for player in players %}
+    <div class="total-card">
+        <div class="name">{{ player }}</div>
+        <div class="score">{{ totals[player] }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Rnd</th>
+            <th></th>
+            <th>Race</th>
+            <th>Date</th>
+            <th></th>
+            {% for player in players %}
+            <th style="text-align:center">{{ player }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% set divider_shown = {'done': false} %}
+        {% for entry in race_scores %}
+        {% set race_date = entry.race.race_time_utc[:10] %}
+        {% if not divider_shown.done and race_date >= today %}
+        <tr class="today-divider">
+            <td colspan="{{ 5 + players|length }}">
+                <hr><span class="today-label">Today: {{ today }}</span>
+            </td>
+        </tr>
+        {% if divider_shown.update({'done': true}) %}{% endif %}
+        {% endif %}
+        <tr>
+            <td>{{ entry.race.round }}</td>
+            <td class="flag-cell">{% if country_flags.get(entry.race.country) %}<img class="flag-icon" src="{{ url_for('serve_flag', filename=country_flags[entry.race.country]) }}" alt="">{% endif %}</td>
+            <td class="race-name-cell">
+                {{ entry.race.name }}
+                {% if entry.race.sprint %}<span class="badge badge-sprint">Sprint</span>{% endif %}
+            </td>
+            <td class="date-cell">{{ race_date }}</td>
+            <td>
+                {% if entry.awarded %}<span class="badge badge-awarded">Scored</span>
+                {% elif entry.predicted %}<span class="badge badge-predicted">Predicted</span>
+                {% endif %}
+            </td>
+            {% for player in players %}
+            <td class="score-cell">
+                {% if entry.awarded %}
+                    {{ entry.scores.get(player, 0) }}
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

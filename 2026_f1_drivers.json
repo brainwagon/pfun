@@ -1,0 +1,178 @@
+[
+  {
+    "first_name": "Pierre",
+    "last_name": "Gasly",
+    "abbreviation": "GAS",
+    "nationality": "French",
+    "team": "Alpine",
+    "flag": "flags/fr.png"
+  },
+  {
+    "first_name": "Franco",
+    "last_name": "Colapinto",
+    "abbreviation": "COL",
+    "nationality": "Argentine",
+    "team": "Alpine",
+    "flag": "flags/ar.png"
+  },
+  {
+    "first_name": "Fernando",
+    "last_name": "Alonso",
+    "abbreviation": "ALO",
+    "nationality": "Spanish",
+    "team": "Aston Martin",
+    "flag": "flags/es.png"
+  },
+  {
+    "first_name": "Lance",
+    "last_name": "Stroll",
+    "abbreviation": "STR",
+    "nationality": "Canadian",
+    "team": "Aston Martin",
+    "flag": "flags/ca.png"
+  },
+  {
+    "first_name": "Nico",
+    "last_name": "Hulkenberg",
+    "abbreviation": "HUL",
+    "nationality": "German",
+    "team": "Audi",
+    "flag": "flags/de.png"
+  },
+  {
+    "first_name": "Gabriel",
+    "last_name": "Bortoleto",
+    "abbreviation": "BOR",
+    "nationality": "Brazilian",
+    "team": "Audi",
+    "flag": "flags/br.png"
+  },
+  {
+    "first_name": "Sergio",
+    "last_name": "Perez",
+    "abbreviation": "PER",
+    "nationality": "Mexican",
+    "team": "Cadillac",
+    "flag": "flags/mx.png"
+  },
+  {
+    "first_name": "Valtteri",
+    "last_name": "Bottas",
+    "abbreviation": "BOT",
+    "nationality": "Finnish",
+    "team": "Cadillac",
+    "flag": "flags/fi.png"
+  },
+  {
+    "first_name": "Charles",
+    "last_name": "Leclerc",
+    "abbreviation": "LEC",
+    "nationality": "Monegasque",
+    "team": "Ferrari",
+    "flag": "flags/mc.png"
+  },
+  {
+    "first_name": "Lewis",
+    "last_name": "Hamilton",
+    "abbreviation": "HAM",
+    "nationality": "British",
+    "team": "Ferrari",
+    "flag": "flags/gb.png"
+  },
+  {
+    "first_name": "Esteban",
+    "last_name": "Ocon",
+    "abbreviation": "OCO",
+    "nationality": "French",
+    "team": "Haas",
+    "flag": "flags/fr.png"
+  },
+  {
+    "first_name": "Oliver",
+    "last_name": "Bearman",
+    "abbreviation": "BEA",
+    "nationality": "British",
+    "team": "Haas",
+    "flag": "flags/gb.png"
+  },
+  {
+    "first_name": "Lando",
+    "last_name": "Norris",
+    "abbreviation": "NOR",
+    "nationality": "British",
+    "team": "McLaren",
+    "flag": "flags/gb.png"
+  },
+  {
+    "first_name": "Oscar",
+    "last_name": "Piastri",
+    "abbreviation": "PIA",
+    "nationality": "Australian",
+    "team": "McLaren",
+    "flag": "flags/au.png"
+  },
+  {
+    "first_name": "George",
+    "last_name": "Russell",
+    "abbreviation": "RUS",
+    "nationality": "British",
+    "team": "Mercedes",
+    "flag": "flags/gb.png"
+  },
+  {
+    "first_name": "Kimi",
+    "last_name": "Antonelli",
+    "abbreviation": "ANT",
+    "nationality": "Italian",
+    "team": "Mercedes",
+    "flag": "flags/it.png"
+  },
+  {
+    "first_name": "Liam",
+    "last_name": "Lawson",
+    "abbreviation": "LAW",
+    "nationality": "New Zealander",
+    "team": "Racing Bulls",
+    "flag": "flags/nz.png"
+  },
+  {
+    "first_name": "Arvid",
+    "last_name": "Lindblad",
+    "abbreviation": "LIN",
+    "nationality": "British",
+    "team": "Racing Bulls",
+    "flag": "flags/gb.png"
+  },
+  {
+    "first_name": "Max",
+    "last_name": "Verstappen",
+    "abbreviation": "VER",
+    "nationality": "Dutch",
+    "team": "Red Bull Racing",
+    "flag": "flags/nl.png"
+  },
+  {
+    "first_name": "Isack",
+    "last_name": "Hadjar",
+    "abbreviation": "HAD",
+    "nationality": "French",
+    "team": "Red Bull Racing",
+    "flag": "flags/fr.png"
+  },
+  {
+    "first_name": "Carlos",
+    "last_name": "Sainz",
+    "abbreviation": "SAI",
+    "nationality": "Spanish",
+    "team": "Williams",
+    "flag": "flags/es.png"
+  },
+  {
+    "first_name": "Alexander",
+    "last_name": "Albon",
+    "abbreviation": "ALB",
+    "nationality": "Thai",
+    "team": "Williams",
+    "flag": "flags/th.png"
+  }
+]

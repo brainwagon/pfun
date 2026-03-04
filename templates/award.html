@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Award Points{% endblock %}
+{% block content %}
+<h1>Award Points</h1>
+<p>Select a race to enter results and award points:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Rnd</th>
+            <th>Race</th>
+            <th>Date (UTC)</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in race_info %}
+        <tr>
+            <td>{{ entry.race.round }}</td>
+            <td>
+                <a class="race-link" href="{{ url_for('award_round', round_num=entry.race.round) }}">
+                    {{ entry.race.name }}
+                </a>
+                {% if entry.race.sprint %}<span class="badge badge-sprint">Sprint</span>{% endif %}
+            </td>
+            <td>{{ entry.race.race_time_utc[:10] }}</td>
+            <td>
+                {% if entry.has_results %}
+                    <span class="badge badge-awarded">Scored</span>
+                {% elif entry.has_predictions %}
+                    <span class="badge badge-predicted">Predicted</span>
+                {% else %}
+                    No predictions yet
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
