@@ -24,7 +24,7 @@
                 <tr>
                     <td>{{ row.position }}</td>
                     <td>{{ row.givenName }} {{ row.familyName }}</td>
-                    <td><img class="team-icon" src="{{ url_for('static', filename='teams/' + row.constructorName.lower().replace(' ', '_') + '.svg') }}" alt="">{{ row.constructorName }}</td>
+                    <td><img class="team-icon" src="{{ url_for('static', filename='teams/' + team_icon_map.get(row.constructorName, row.constructorName.lower().replace(' ', '_')) + '.svg') }}" alt="">{{ row.constructorName }}</td>
                     <td>{{ row.points }}</td>
                 </tr>
                 {% endfor %}
@@ -49,7 +49,7 @@
                 {% for row in constructor_standings %}
                 <tr>
                     <td>{{ row.position }}</td>
-                    <td><img class="team-icon" src="{{ url_for('static', filename='teams/' + row.constructorName.lower().replace(' ', '_') + '.svg') }}" alt="">{{ row.constructorName }}</td>
+                    <td><img class="team-icon" src="{{ url_for('static', filename='teams/' + team_icon_map.get(row.constructorName, row.constructorName.lower().replace(' ', '_')) + '.svg') }}" alt="">{{ row.constructorName }}</td>
                     <td>{{ row.points }}</td>
                 </tr>
                 {% endfor %}

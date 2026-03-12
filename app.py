@@ -30,6 +30,14 @@ COUNTRY_FLAGS = {
     "Qatar": "qa.png", "Saudi Arabia": "sa.png", "Singapore": "sg.png",
     "Spain": "es.png", "United Arab Emirates": "ae.png", "United States": "us.png",
 }
+TEAM_ICON_MAP = {
+    "Alpine F1 Team": "alpine",
+    "Haas F1 Team": "haas",
+    "RB F1 Team": "racing_bulls",
+    "Red Bull": "red_bull_racing",
+    "Sauber": "audi",
+    "Cadillac F1 Team": "cadillac",
+}
 SUBJECTIVE_CATEGORIES = {"surprise", "flop"}
 BASE_CATEGORIES = ["surprise", "flop", "pole", "third", "second", "winner"]
 SPRINT_CATEGORIES = ["sprint_pole", "sprint_winner"]
@@ -516,6 +524,7 @@ def standings():
         driver_standings=driver_standings,
         constructor_standings=constructor_standings,
         fallback=fallback,
+        team_icon_map=TEAM_ICON_MAP,
     )
 
 
