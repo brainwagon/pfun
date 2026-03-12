@@ -1,0 +1,15 @@
+[Unit]
+Description=P-Fun F1 Prediction Challenge
+After=network.target
+
+[Service]
+Type=simple
+User=pfun
+Group=pfun
+WorkingDirectory=/opt/pfun
+ExecStart=/opt/pfun/venv/bin/gunicorn --bind 0.0.0.0:5000 app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

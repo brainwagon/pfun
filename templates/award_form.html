@@ -1,10 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Award - {{ race.name }}{% endblock %}
 {% block content %}
-<h1>{{ race.name }} (Round {{ race.round }})</h1>
-<p>{{ race.location }}, {{ race.country }}
-{% if race.sprint %}<span class="badge badge-sprint">Sprint Weekend</span>{% endif %}
-</p>
+<div class="race-header">
+    <div>
+        <h1>{{ race.name }} (Round {{ race.round }})</h1>
+        <p>{{ race.location }}, {{ race.country }}
+        {% if race.sprint %}<span class="badge badge-sprint">Sprint Weekend</span>{% endif %}
+        </p>
+    </div>
+    <img class="race-header-track" src="{{ url_for('static', filename=track_img) }}" alt="Track layout">
+</div>
 
 {% if saved %}
 <div class="alert alert-success">Results saved and points awarded!</div>
@@ -26,7 +31,7 @@
         {% for row in comparison %}
         <tr>
             <td>{{ row.category }}</td>
-            <td><strong>{{ row.actual_abbr }}</strong>{% if row.actual_abbr and dmap.get(row.actual_abbr) %} - {{ dmap[row.actual_abbr].last_name }}{% endif %}</td>
+            <td>{% if row.cat_key in subjective_cats %}<em>Subjective</em>{% else %}<strong>{{ row.actual_abbr }}</strong>{% if row.actual_abbr and dmap.get(row.actual_abbr) %} - {{ dmap[row.actual_abbr].last_name }}{% endif %}{% endif %}</td>
             {% for player in players %}
             {% set info = row.players[player] %}
             <td class="{% if info.pred %}{% if info.correct %}correct{% else %}incorrect{% endif %}{% endif %}">
@@ -48,8 +53,19 @@
 
 <form method="post">
     {% for cat in categories %}
+    {% if cat not in subjective_cats %}
     <input type="hidden" name="actual_{{ cat }}" value="{{ actuals_draft.get(cat, '') }}">
+    {% endif %}
     {% endfor %}
+    {% if approvals_draft %}
+    {% for player in players %}
+    {% for cat in subjective_cats %}
+    {% if approvals_draft.get(player, {}).get(cat) %}
+    <input type="hidden" name="approve_{{ player }}_{{ cat }}" value="1">
+    {% endif %}
+    {% endfor %}
+    {% endfor %}
+    {% endif %}
     <button type="submit" name="confirm" value="1" class="btn btn-confirm">Confirm &amp; Save Points</button>
     &nbsp;
     <a href="{{ url_for('award_round', round_num=race.round) }}" class="btn btn-primary">Edit Results</a>
@@ -58,9 +74,28 @@
 {% else %}
 
 <h2>Enter Race Results</h2>
+<div style="margin-bottom: 1em;">
+    <button type="button" id="fetch-btn" class="btn btn-primary" onclick="fetchResults()">Fetch from FastF1</button>
+    <span id="fetch-status" style="margin-left: 0.5em;"></span>
+</div>
 <form method="post">
-    <div class="player-section" style="max-width: 500px;">
+    <div class="player-section" style="max-width: 650px;">
         {% for cat in categories %}
+        {% if cat in subjective_cats %}
+        <div class="form-row">
+            <label>{{ cat_labels[cat] }} <span style="font-size: 0.85em; color: #888;">(subjective)</span></label>
+            <div style="margin-left: 1em;">
+                {% for player in players %}
+                {% set pred = round_preds.get(player, {}).get(cat, '') %}
+                <label style="display: block; margin: 0.3em 0; white-space: nowrap;">
+                    <input type="checkbox" name="approve_{{ player }}_{{ cat }}" value="1"
+                        {% if not pred %}disabled{% endif %}>
+                    {{ player }}: <strong>{{ pred }}</strong>{% if pred and dmap.get(pred) %} - {{ dmap[pred].last_name }}{% endif %}{% if not pred %} <em>(no pick)</em>{% endif %}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
         <div class="form-row">
             <label>{{ cat_labels[cat] }}</label>
             <select name="actual_{{ cat }}">
@@ -72,11 +107,62 @@
                 {% endfor %}
             </select>
         </div>
+        {% endif %}
         {% endfor %}
     </div>
     <br>
     <button type="submit" class="btn btn-primary">Preview Comparison</button>
 </form>
 
+<script>
+function fetchResults() {
+    var btn = document.getElementById('fetch-btn');
+    var status = document.getElementById('fetch-status');
+    btn.disabled = true;
+    status.style.color = '#666';
+
+    var dots = 0;
+    var animInterval = setInterval(function() {
+        dots = (dots % 3) + 1;
+        status.textContent = 'Fetching' + '.'.repeat(dots);
+    }, 400);
+
+    fetch('/award/{{ race.round }}/fetch')
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            clearInterval(animInterval);
+            var results = data.results || {};
+            var errors = data.errors || [];
+            var populated = [];
+
+            for (var key in results) {
+                var sel = document.querySelector('select[name="actual_' + key + '"]');
+                if (sel) {
+                    sel.value = results[key];
+                    populated.push(key);
+                }
+            }
+
+            var msg = '';
+            if (populated.length > 0) {
+                msg = 'Populated ' + populated.length + ' field(s).';
+            }
+            if (errors.length > 0) {
+                msg += (msg ? ' ' : '') + errors.join('; ');
+                status.style.color = '#b45309';
+            } else {
+                status.style.color = '#16a34a';
+            }
+            status.textContent = msg;
+            btn.disabled = false;
+        })
+        .catch(function(err) {
+            clearInterval(animInterval);
+            status.textContent = 'Error: ' + err.message;
+            status.style.color = '#dc2626';
+            btn.disabled = false;
+        });
+}
+</script>
 {% endif %}
 {% endblock %}

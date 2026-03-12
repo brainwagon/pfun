@@ -1,0 +1,19 @@
+---
+- name: Install and configure Avahi/mDNS
+  hosts: all
+  become: true
+  tasks:
+    - name: Install avahi packages
+      apt:
+        name:
+          - avahi-daemon
+          - avahi-utils
+          - libnss-mdns
+        state: present
+        update_cache: true
+
+    - name: Enable and start avahi-daemon
+      systemd:
+        name: avahi-daemon
+        enabled: true
+        state: started

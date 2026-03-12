@@ -1,7 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Standings{% endblock %}
 {% block content %}
+{% if saved %}
+<div class="alert alert-success">Results saved and points awarded!</div>
+{% endif %}
 <h1>2026 Season Standings</h1>
+
+{% if next_race %}
+<div class="countdown-box">
+    <span class="countdown-label">Next Race:</span>
+    <span class="countdown-race">{{ next_race.name }}</span>
+    <span id="countdown" data-target="{{ next_race.race_time_utc }}"></span>
+</div>
+{% endif %}
 
 <div class="totals">
     {% for player in players %}
@@ -63,4 +74,27 @@
         {% endfor %}
     </tbody>
 </table>
+
+{% if next_race %}
+<script>
+(function() {
+    var el = document.getElementById('countdown');
+    var target = new Date(el.dataset.target).getTime();
+    function update() {
+        var diff = target - Date.now();
+        if (diff <= 0) { el.textContent = 'Race started!'; return; }
+        var d = Math.floor(diff / 86400000);
+        var h = Math.floor((diff % 86400000) / 3600000);
+        var m = Math.floor((diff % 3600000) / 60000);
+        var parts = [];
+        if (d > 0) parts.push(d + 'd');
+        parts.push(h + 'h');
+        parts.push(m + 'm');
+        el.textContent = parts.join(' ');
+    }
+    update();
+    setInterval(update, 60000);
+})();
+</script>
+{% endif %}
 {% endblock %}

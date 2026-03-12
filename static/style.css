@@ -47,10 +47,22 @@ nav a:hover {
     color: var(--f1-red);
 }
 
+nav .nav-right {
+    margin-left: auto;
+}
+
 .container {
     max-width: 1000px;
     margin: 1.5rem auto;
     padding: 0 1rem;
+}
+
+footer {
+    text-align: center;
+    padding: 1.5rem 1rem;
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    color: var(--f1-gray);
 }
 
 h1, h2, h3 {
@@ -88,15 +100,47 @@ h2 {
 }
 
 .total-card .name {
-    font-size: 0.9rem;
-    opacity: 0.8;
+    font-family: "Racing Sans One", cursive;
+    font-size: 1.6rem;
     margin-bottom: 0.2rem;
 }
 
 .total-card .score {
-    font-size: 2rem;
+    font-size: 4rem;
     font-weight: 800;
     color: var(--f1-red);
+}
+
+/* Countdown */
+.countdown-box {
+    margin-bottom: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+    float: right;
+}
+
+.countdown-label {
+    font-weight: 600;
+}
+
+#countdown {
+    font-family: "Racing Sans One", monospace;
+    font-size: 1.4rem;
+    color: var(--f1-red);
+}
+
+/* Race header */
+.race-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.race-header-track {
+    flex-shrink: 0;
 }
 
 /* Tables */
@@ -241,6 +285,11 @@ select:focus {
     background: #c00500;
 }
 
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .btn-confirm {
     background: var(--green);
     color: var(--f1-white);
@@ -317,6 +366,38 @@ select:focus {
     }
     table { font-size: 0.8rem; }
     th, td { padding: 0.4rem 0.5rem; }
+}
+
+/* Team icons */
+.team-icon {
+    height: 20px;
+    width: 20px;
+    vertical-align: middle;
+    margin-right: 0.4rem;
+    border-radius: 3px;
+}
+
+/* Standings layout */
+.standings-container {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.standings-container > div {
+    flex: 1;
+    min-width: 0;
+}
+
+.standings-container td:last-child,
+.standings-container th:last-child {
+    text-align: right;
+    padding-right: 2em;
+}
+
+@media (max-width: 700px) {
+    .standings-container {
+        flex-direction: column;
+    }
 }
 
 .date-cell {

@@ -2,9 +2,14 @@ import json
 import os
 from datetime import datetime, timezone, timedelta
 
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+import fastf1
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, jsonify
 
 app = Flask(__name__)
+
+_fastf1_cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fastf1_cache')
+os.makedirs(_fastf1_cache_dir, exist_ok=True)
+fastf1.Cache.enable_cache(_fastf1_cache_dir)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RACES_FILE = os.path.join(BASE_DIR, "2026_f1_races.json")
@@ -25,6 +30,7 @@ COUNTRY_FLAGS = {
     "Qatar": "qa.png", "Saudi Arabia": "sa.png", "Singapore": "sg.png",
     "Spain": "es.png", "United Arab Emirates": "ae.png", "United States": "us.png",
 }
+SUBJECTIVE_CATEGORIES = {"surprise", "flop"}
 BASE_CATEGORIES = ["surprise", "flop", "pole", "third", "second", "winner"]
 SPRINT_CATEGORIES = ["sprint_pole", "sprint_winner"]
 CATEGORY_LABELS = {
@@ -90,10 +96,10 @@ def get_race(round_num):
 
 
 def categories_for_race(race):
-    cats = list(BASE_CATEGORIES)
     if race.get("sprint"):
-        cats = SPRINT_CATEGORIES + cats
-    return cats
+        return ["surprise", "flop", "sprint_pole", "sprint_winner",
+                "pole", "third", "second", "winner"]
+    return list(BASE_CATEGORIES)
 
 
 def driver_map():
@@ -101,12 +107,19 @@ def driver_map():
     return {d["abbreviation"]: d for d in load_drivers()}
 
 
-def compute_scores(actuals, predictions_round):
+def compute_scores(actuals, predictions_round, approvals=None):
     """Return {player: score} for a single round."""
     scores = {}
     for player in PLAYERS:
         preds = predictions_round.get(player, {})
-        score = sum(1 for cat in actuals if preds.get(cat) == actuals[cat])
+        score = 0
+        for cat in actuals:
+            if cat in SUBJECTIVE_CATEGORIES and approvals:
+                if approvals.get(player, {}).get(cat):
+                    score += 1
+            else:
+                if preds.get(cat) == actuals[cat]:
+                    score += 1
         scores[player] = score
     return scores
 
@@ -144,7 +157,15 @@ def index():
         else:
             race_scores.append({"race": race, "scores": {}, "awarded": False, "predicted": predicted})
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return render_template("index.html", players=PLAYERS, totals=totals, race_scores=race_scores, country_flags=COUNTRY_FLAGS, today=today)
+    now = datetime.now(timezone.utc)
+    next_race = None
+    for race in races:
+        race_time = datetime.fromisoformat(race["race_time_utc"].replace("Z", "+00:00"))
+        if race_time > now:
+            next_race = race
+            break
+    saved = request.args.get("saved")
+    return render_template("index.html", players=PLAYERS, totals=totals, race_scores=race_scores, country_flags=COUNTRY_FLAGS, today=today, next_race=next_race, saved=saved)
 
 
 @app.route("/predict")
@@ -188,6 +209,8 @@ def predict_round(round_num):
 
     existing = predictions.get(rnd, {})
     saved = request.args.get("saved")
+    location_slug = race["location"].lower().replace(" ", "_")
+    track_img = f"medium_tracks/round_{round_num:02d}_{location_slug}.png"
     return render_template(
         "predict_form.html",
         race=race,
@@ -198,6 +221,7 @@ def predict_round(round_num):
         existing=existing,
         warning=warning,
         saved=saved,
+        track_img=track_img,
     )
 
 
@@ -231,41 +255,68 @@ def award_round(round_num):
 
     comparison = None
     actuals_draft = None
+    approvals_draft = None
+    preview_scores = None
 
     if request.method == "POST":
         if "confirm" in request.form:
             # Second step: save
             actuals = {}
             for cat in cats:
-                val = request.form.get(f"actual_{cat}", "").strip()
-                if val:
-                    actuals[cat] = val
+                if cat not in SUBJECTIVE_CATEGORIES:
+                    val = request.form.get(f"actual_{cat}", "").strip()
+                    if val:
+                        actuals[cat] = val
+                else:
+                    actuals[cat] = ""
             round_preds = predictions.get(rnd, {})
-            scores = compute_scores(actuals, round_preds)
-            results[rnd] = {"actuals": actuals, "scores": scores}
+            approvals = {}
+            for player in PLAYERS:
+                approvals[player] = {}
+                for cat in SUBJECTIVE_CATEGORIES:
+                    if cat in cats and request.form.get(f"approve_{player}_{cat}"):
+                        approvals[player][cat] = True
+            scores = compute_scores(actuals, round_preds, approvals=approvals)
+            results[rnd] = {"actuals": actuals, "approvals": approvals, "scores": scores}
             save_results(results)
-            return redirect(url_for("award_round", round_num=round_num, saved=1))
+            return redirect(url_for("index", saved=1))
         else:
             # First step: preview comparison
             actuals_draft = {}
             for cat in cats:
-                val = request.form.get(f"actual_{cat}", "").strip()
-                if val:
-                    actuals_draft[cat] = val
+                if cat not in SUBJECTIVE_CATEGORIES:
+                    val = request.form.get(f"actual_{cat}", "").strip()
+                    if val:
+                        actuals_draft[cat] = val
+                else:
+                    actuals_draft[cat] = ""
             round_preds = predictions.get(rnd, {})
+            # Read subjective approvals
+            approvals_draft = {}
+            for player in PLAYERS:
+                approvals_draft[player] = {}
+                for cat in SUBJECTIVE_CATEGORIES:
+                    if cat in cats and request.form.get(f"approve_{player}_{cat}"):
+                        approvals_draft[player][cat] = True
             comparison = []
             for cat in cats:
                 actual = actuals_draft.get(cat, "")
-                row = {"category": CATEGORY_LABELS.get(cat, cat), "actual": actual, "actual_abbr": actual, "players": {}}
+                row = {"category": CATEGORY_LABELS.get(cat, cat), "cat_key": cat, "actual": actual, "actual_abbr": actual, "players": {}}
                 for player in PLAYERS:
                     pred = round_preds.get(player, {}).get(cat, "")
-                    correct = pred == actual and actual != ""
+                    if cat in SUBJECTIVE_CATEGORIES:
+                        correct = approvals_draft.get(player, {}).get(cat, False)
+                    else:
+                        correct = pred == actual and actual != ""
                     row["players"][player] = {"pred": pred, "correct": correct}
                 comparison.append(row)
             # Compute preview scores
-            preview_scores = compute_scores(actuals_draft, round_preds)
+            preview_scores = compute_scores(actuals_draft, round_preds, approvals=approvals_draft)
 
     saved = request.args.get("saved")
+    location_slug = race["location"].lower().replace(" ", "_")
+    track_img = f"medium_tracks/round_{round_num:02d}_{location_slug}.png"
+    round_preds = predictions.get(rnd, {})
     return render_template(
         "award_form.html",
         race=race,
@@ -277,8 +328,194 @@ def award_round(round_num):
         existing_actuals=existing_actuals,
         comparison=comparison,
         actuals_draft=actuals_draft,
+        approvals_draft=approvals_draft if comparison else None,
         preview_scores=preview_scores if comparison else None,
         saved=saved,
+        track_img=track_img,
+        subjective_cats=SUBJECTIVE_CATEGORIES,
+        round_preds=round_preds,
+    )
+
+
+@app.route("/award/<int:round_num>/fetch")
+def fetch_results(round_num):
+    race = get_race(round_num)
+    if not race:
+        return jsonify({"results": {}, "errors": ["Race not found"]}), 404
+
+    year = 2026
+    results = {}
+    errors = []
+
+    # Map: (session_identifier, position) -> result key
+    session_map = [
+        ("Q", 0, "pole"),
+        ("R", 0, "winner"),
+        ("R", 1, "second"),
+        ("R", 2, "third"),
+    ]
+    if race.get("sprint"):
+        session_map.extend([
+            ("SQ", 0, "sprint_pole"),
+            ("S", 0, "sprint_winner"),
+        ])
+
+    # Group by session to avoid loading the same session twice
+    from collections import defaultdict
+    session_needs = defaultdict(list)
+    for sess_id, pos, key in session_map:
+        session_needs[sess_id].append((pos, key))
+
+    failed_sessions = set()
+    session_labels = {"Q": "Qualifying", "R": "Race", "SQ": "Sprint Qualifying", "S": "Sprint"}
+
+    for sess_id, extractions in session_needs.items():
+        try:
+            session = fastf1.get_session(year, round_num, sess_id)
+            session.load()
+            for pos, key in extractions:
+                try:
+                    abbr = session.results.iloc[pos]["Abbreviation"]
+                    results[key] = abbr
+                except (IndexError, KeyError):
+                    failed_sessions.add(session_labels.get(sess_id, sess_id))
+        except Exception:
+            failed_sessions.add(session_labels.get(sess_id, sess_id))
+
+    if failed_sessions:
+        # Maintain a consistent display order
+        ordered = [l for l in ["Sprint Qualifying", "Sprint", "Qualifying", "Race"] if l in failed_sessions]
+        if len(ordered) == 1:
+            names = ordered[0]
+        elif len(ordered) == 2:
+            names = f"{ordered[0]} and {ordered[1]}"
+        else:
+            names = ", ".join(ordered[:-1]) + f", and {ordered[-1]}"
+        errors.append(f"{names} not available")
+
+    return jsonify({"results": results, "errors": errors})
+
+
+def _fetch_standings(ergast, season):
+    """Fetch driver and constructor standings for a season. Returns (drivers, constructors) or (None, None)."""
+    try:
+        ds = ergast.get_driver_standings(season=season)
+        driver_standings = None
+        if ds.content and len(ds.content[0]) > 0:
+            rows = ds.content[0].to_dict("records")
+            for row in rows:
+                # Ergast returns constructorNames as a list; template expects constructorName
+                if "constructorNames" in row and "constructorName" not in row:
+                    names = row.pop("constructorNames")
+                    row["constructorName"] = names[0] if names else ""
+                row["points"] = int(row.get("points", 0))
+            driver_standings = rows
+        cs = ergast.get_constructor_standings(season=season)
+        if cs.content and len(cs.content[0]) > 0:
+            c_rows = cs.content[0].to_dict("records")
+            for row in c_rows:
+                row["points"] = int(row.get("points", 0))
+            constructor_standings = c_rows
+        else:
+            constructor_standings = None
+        if driver_standings or constructor_standings:
+            return driver_standings, constructor_standings
+    except Exception:
+        pass
+    return None, None
+
+
+def _fallback_standings_from_2025(ergast):
+    """Build 2026 standings seeded from 2025 final results, with new drivers/teams placed last."""
+    drivers_2026 = load_drivers()
+    teams_2026 = sorted(set(d["team"] for d in drivers_2026))
+
+    # Fetch 2025 standings
+    ds_2025, cs_2025 = _fetch_standings(ergast, 2025)
+
+    # Build driver standings using 2025 order as seed
+    driver_standings = []
+    used = set()
+    if ds_2025:
+        for row in ds_2025:
+            full_name = f"{row['givenName']} {row['familyName']}"
+            # Match against 2026 roster
+            match = None
+            for d in drivers_2026:
+                if d["first_name"] == row.get("givenName") and d["last_name"] == row.get("familyName"):
+                    match = d
+                    break
+            if match and match["abbreviation"] not in used:
+                used.add(match["abbreviation"])
+                driver_standings.append({
+                    "position": len(driver_standings) + 1,
+                    "givenName": match["first_name"],
+                    "familyName": match["last_name"],
+                    "constructorName": match["team"],
+                    "points": 0,
+                })
+    # Append 2026 drivers not in 2025 standings at the end
+    for d in sorted(drivers_2026, key=lambda x: (x["last_name"], x["first_name"])):
+        if d["abbreviation"] not in used:
+            driver_standings.append({
+                "position": len(driver_standings) + 1,
+                "givenName": d["first_name"],
+                "familyName": d["last_name"],
+                "constructorName": d["team"],
+                "points": 0,
+            })
+
+    # Build constructor standings using 2025 order as seed
+    constructor_standings = []
+    used_teams = set()
+    # Map 2025 constructor names to 2026 team names (handle renames)
+    TEAM_NAME_MAP_2025_TO_2026 = {
+        "Sauber": "Audi",
+        "RB F1 Team": "Racing Bulls",
+        "Red Bull": "Red Bull Racing",
+        "Haas F1 Team": "Haas",
+        "Alpine F1 Team": "Alpine",
+    }
+    if cs_2025:
+        for row in cs_2025:
+            name_2025 = row.get("constructorName", "")
+            name_2026 = TEAM_NAME_MAP_2025_TO_2026.get(name_2025, name_2025)
+            if name_2026 in teams_2026 and name_2026 not in used_teams:
+                used_teams.add(name_2026)
+                constructor_standings.append({
+                    "position": len(constructor_standings) + 1,
+                    "constructorName": name_2026,
+                    "points": 0,
+                })
+    # Append new 2026 teams at the end
+    for team in sorted(teams_2026):
+        if team not in used_teams:
+            constructor_standings.append({
+                "position": len(constructor_standings) + 1,
+                "constructorName": team,
+                "points": 0,
+            })
+
+    return driver_standings, constructor_standings
+
+
+@app.route("/standings")
+def standings():
+    import fastf1.ergast
+    ergast = fastf1.ergast.Ergast()
+    fallback = False
+
+    driver_standings, constructor_standings = _fetch_standings(ergast, 2026)
+
+    if not driver_standings and not constructor_standings:
+        driver_standings, constructor_standings = _fallback_standings_from_2025(ergast)
+        fallback = True
+
+    return render_template(
+        "standings.html",
+        driver_standings=driver_standings,
+        constructor_standings=constructor_standings,
+        fallback=fallback,
     )
 
 

@@ -15,9 +15,13 @@
         <a href="{{ url_for('index') }}">Standings</a>
         <a href="{{ url_for('predict_list') }}">Predict</a>
         <a href="{{ url_for('award_list') }}">Award</a>
+        <a href="{{ url_for('standings') }}" class="nav-right">Driver/Team Standings</a>
     </nav>
     <div class="container">
         {% block content %}{% endblock %}
     </div>
+    <footer>
+        Inspired by the YouTube channel <a href="https://www.youtube.com/@mattp1tommy" target="_blank">"P1 With Matt and Tommy"</a>. Created by Mark VandeWettering using Claude Code.
+    </footer>
 </body>
 </html>

@@ -1,1 +1,5 @@
 Flask
+fastf1
+gunicorn
+matplotlib
+numpy

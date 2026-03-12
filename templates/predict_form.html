@@ -1,10 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Predict - {{ race.name }}{% endblock %}
 {% block content %}
-<h1>{{ race.name }} (Round {{ race.round }})</h1>
-<p>{{ race.location }}, {{ race.country }} &mdash; {{ race.race_time_utc[:10] }}
-{% if race.sprint %}<span class="badge badge-sprint">Sprint Weekend</span>{% endif %}
-</p>
+<div class="race-header">
+    <div>
+        <h1>{{ race.name }} (Round {{ race.round }})</h1>
+        <p>{{ race.location }}, {{ race.country }} &mdash; {{ race.race_time_utc[:10] }}
+        {% if race.sprint %}<span class="badge badge-sprint">Sprint Weekend</span>{% endif %}
+        </p>
+    </div>
+    <img class="race-header-track" src="{{ url_for('static', filename=track_img) }}" alt="Track layout">
+</div>
 
 {% if warning %}
 <div class="alert alert-warning">{{ warning }}</div>
