@@ -528,6 +528,53 @@ def standings():
     )
 
 
+@app.route("/race/<int:round_num>")
+def race_detail(round_num):
+    race = get_race(round_num)
+    if not race:
+        return "Race not found", 404
+    rnd = str(round_num)
+    predictions = load_predictions()
+    results = load_results()
+    round_preds = predictions.get(rnd, {})
+    existing_result = results.get(rnd, {})
+    actuals = existing_result.get("actuals", {})
+    approvals = existing_result.get("approvals", {})
+    scored = bool(existing_result)
+    predicted = rnd in predictions and any(round_preds.get(p) for p in PLAYERS)
+
+    if not scored and not predicted:
+        return "No predictions or results for this race yet", 404
+
+    cats = categories_for_race(race)
+    dmap_ = driver_map()
+    comparison = []
+    for cat in cats:
+        actual = actuals.get(cat, "")
+        row = {"category": CATEGORY_LABELS.get(cat, cat), "cat_key": cat, "actual": actual, "players": {}}
+        for player in PLAYERS:
+            pred = round_preds.get(player, {}).get(cat, "")
+            if scored:
+                if cat in SUBJECTIVE_CATEGORIES:
+                    correct = approvals.get(player, {}).get(cat, False)
+                else:
+                    correct = pred == actual and actual != ""
+            else:
+                correct = None
+            row["players"][player] = {"pred": pred, "correct": correct}
+        comparison.append(row)
+
+    scores = existing_result.get("scores", {}) if scored else None
+    location_slug = race["location"].lower().replace(" ", "_")
+    track_img = f"medium_tracks/round_{round_num:02d}_{location_slug}.png"
+    return render_template(
+        "race_detail.html",
+        race=race, comparison=comparison, players=PLAYERS, scores=scores,
+        scored=scored, dmap=dmap_, track_img=track_img,
+        subjective_cats=SUBJECTIVE_CATEGORIES,
+    )
+
+
 @app.route("/flags/<path:filename>")
 def serve_flag(filename):
     return send_from_directory(os.path.join(BASE_DIR, "flags"), filename)

@@ -18,7 +18,15 @@
     {% for player in players %}
     <div class="total-card">
         <div class="name">{{ player }}</div>
-        <div class="score">{{ totals[player] }}</div>
+        <div class="score-row">
+            {% if player == "Carmen" %}
+            <img class="player-avatar" src="{{ url_for('static', filename='carmen_driver.png') }}" alt="Carmen">
+            {% endif %}
+            <div class="score">{{ totals[player] }}</div>
+            {% if player == "Mark" %}
+            <img class="player-avatar" src="{{ url_for('static', filename='mark_driver.png') }}" alt="Mark">
+            {% endif %}
+        </div>
     </div>
     {% endfor %}
 </div>
@@ -52,7 +60,7 @@
             <td>{{ entry.race.round }}</td>
             <td class="flag-cell">{% if country_flags.get(entry.race.country) %}<img class="flag-icon" src="{{ url_for('serve_flag', filename=country_flags[entry.race.country]) }}" alt="">{% endif %}</td>
             <td class="race-name-cell">
-                {{ entry.race.name }}
+                {% if entry.predicted or entry.awarded %}<a href="{{ url_for('race_detail', round_num=entry.race.round) }}">{{ entry.race.name }}</a>{% else %}{{ entry.race.name }}{% endif %}
                 {% if entry.race.sprint %}<span class="badge badge-sprint">Sprint</span>{% endif %}
             </td>
             <td class="date-cell">{{ race_date }}</td>

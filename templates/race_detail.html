@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ race.name }} - Details{% endblock %}
+{% block content %}
+<div class="race-header">
+    <div>
+        <h1>{{ race.name }} (Round {{ race.round }})</h1>
+        <p>{{ race.location }}, {{ race.country }}
+        {% if race.sprint %}<span class="badge badge-sprint">Sprint Weekend</span>{% endif %}
+        </p>
+        {% if scored %}
+        <span class="badge badge-awarded">Scored</span>
+        {% else %}
+        <span class="badge badge-predicted">Predicted</span>
+        {% endif %}
+    </div>
+    <img class="race-header-track" src="{{ url_for('static', filename=track_img) }}" alt="Track layout">
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Category</th>
+            {% if scored %}<th>Actual</th>{% endif %}
+            {% for player in players %}
+            <th>{{ player }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in comparison %}
+        <tr>
+            <td>{{ row.category }}</td>
+            {% if scored %}
+            <td>{% if row.cat_key in subjective_cats %}<em>Subjective</em>{% else %}<strong>{{ row.actual }}</strong>{% if row.actual and dmap.get(row.actual) %} - {{ dmap[row.actual].last_name }}{% endif %}{% endif %}</td>
+            {% endif %}
+            {% for player in players %}
+            {% set info = row.players[player] %}
+            <td class="{% if scored and info.pred %}{% if info.correct %}correct{% else %}incorrect{% endif %}{% endif %}">
+                {{ info.pred }}{% if info.pred and dmap.get(info.pred) %} - {{ dmap[info.pred].last_name }}{% endif %}
+            </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+    {% if scored and scores %}
+    <tfoot>
+        <tr>
+            <td {% if scored %}colspan="2"{% endif %}><strong>Total Points</strong></td>
+            {% for player in players %}
+            <td class="score-cell"><strong>{{ scores[player] }}</strong></td>
+            {% endfor %}
+        </tr>
+    </tfoot>
+    {% endif %}
+</table>
+
+<p style="margin-top: 1.5em;"><a href="{{ url_for('index') }}">&larr; Back to standings</a></p>
+{% endblock %}
