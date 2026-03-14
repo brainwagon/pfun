@@ -17,6 +17,7 @@ DRIVERS_FILE = os.path.join(BASE_DIR, "2026_f1_drivers.json")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 PREDICTIONS_FILE = os.path.join(DATA_DIR, "predictions.json")
 RESULTS_FILE = os.path.join(DATA_DIR, "results.json")
+CANCELLED_FILE = os.path.join(DATA_DIR, "cancelled.json")
 
 PLAYERS = ["Carmen", "Mark"]
 
@@ -96,6 +97,18 @@ def save_results(data):
     save_json(RESULTS_FILE, data)
 
 
+def load_cancelled():
+    return set(load_json(CANCELLED_FILE, []))
+
+
+def save_cancelled(data):
+    save_json(CANCELLED_FILE, sorted(data))
+
+
+def is_cancelled(round_num):
+    return round_num in load_cancelled()
+
+
 def get_race(round_num):
     for race in load_races():
         if race["round"] == round_num:
@@ -151,25 +164,27 @@ def index():
     races = load_races()
     results = load_results()
     predictions = load_predictions()
+    cancelled = load_cancelled()
     totals = {p: 0 for p in PLAYERS}
     race_scores = []
     for race in races:
         rnd = str(race["round"])
         res = results.get(rnd)
         predicted = rnd in predictions and any(predictions[rnd].get(p) for p in PLAYERS)
+        is_canc = race["round"] in cancelled
         if res:
             scores = res.get("scores", {})
             for p in PLAYERS:
                 totals[p] += scores.get(p, 0)
-            race_scores.append({"race": race, "scores": scores, "awarded": True, "predicted": predicted})
+            race_scores.append({"race": race, "scores": scores, "awarded": True, "predicted": predicted, "cancelled": is_canc})
         else:
-            race_scores.append({"race": race, "scores": {}, "awarded": False, "predicted": predicted})
+            race_scores.append({"race": race, "scores": {}, "awarded": False, "predicted": predicted, "cancelled": is_canc})
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     now = datetime.now(timezone.utc)
     next_race = None
     for race in races:
         race_time = datetime.fromisoformat(race["race_time_utc"].replace("Z", "+00:00"))
-        if race_time > now:
+        if race_time > now and race["round"] not in cancelled:
             next_race = race
             break
     saved = request.args.get("saved")
@@ -181,12 +196,13 @@ def predict_list():
     races = load_races()
     predictions = load_predictions()
     results = load_results()
+    cancelled = load_cancelled()
     race_info = []
     for race in races:
         rnd = str(race["round"])
         has_predictions = rnd in predictions and any(predictions[rnd].get(p) for p in PLAYERS)
         has_results = rnd in results
-        race_info.append({"race": race, "has_predictions": has_predictions, "has_results": has_results})
+        race_info.append({"race": race, "has_predictions": has_predictions, "has_results": has_results, "is_cancelled": race["round"] in cancelled})
     return render_template("predict.html", race_info=race_info)
 
 
@@ -195,6 +211,8 @@ def predict_round(round_num):
     race = get_race(round_num)
     if not race:
         return "Race not found", 404
+    if is_cancelled(round_num):
+        return redirect(url_for("predict_list"))
     rnd = str(round_num)
     cats = categories_for_race(race)
     drivers = load_drivers()
@@ -238,13 +256,28 @@ def award_list():
     races = load_races()
     predictions = load_predictions()
     results = load_results()
+    cancelled = load_cancelled()
     race_info = []
     for race in races:
         rnd = str(race["round"])
         has_predictions = rnd in predictions and any(predictions[rnd].get(p) for p in PLAYERS)
         has_results = rnd in results
-        race_info.append({"race": race, "has_predictions": has_predictions, "has_results": has_results})
+        race_info.append({"race": race, "has_predictions": has_predictions, "has_results": has_results, "is_cancelled": race["round"] in cancelled})
     return render_template("award.html", race_info=race_info)
+
+
+@app.route("/award/<int:round_num>/cancel", methods=["POST"])
+def toggle_cancel(round_num):
+    race = get_race(round_num)
+    if not race:
+        return "Race not found", 404
+    cancelled = load_cancelled()
+    if round_num in cancelled:
+        cancelled.discard(round_num)
+    else:
+        cancelled.add(round_num)
+    save_cancelled(cancelled)
+    return redirect(url_for("award_list"))
 
 
 @app.route("/award/<int:round_num>", methods=["GET", "POST"])
@@ -252,6 +285,8 @@ def award_round(round_num):
     race = get_race(round_num)
     if not race:
         return "Race not found", 404
+    if is_cancelled(round_num):
+        return redirect(url_for("award_list"))
     rnd = str(round_num)
     cats = categories_for_race(race)
     drivers = load_drivers()
@@ -572,6 +607,7 @@ def race_detail(round_num):
         race=race, comparison=comparison, players=PLAYERS, scores=scores,
         scored=scored, dmap=dmap_, track_img=track_img,
         subjective_cats=SUBJECTIVE_CATEGORIES,
+        cancelled=is_cancelled(round_num),
     )
 
 
@@ -581,4 +617,4 @@ def serve_flag(filename):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

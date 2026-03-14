@@ -11,27 +11,41 @@
             <th>Race</th>
             <th>Date (UTC)</th>
             <th>Status</th>
+            <th></th>
         </tr>
     </thead>
     <tbody>
         {% for entry in race_info %}
-        <tr>
+        <tr{% if entry.is_cancelled %} class="cancelled"{% endif %}>
             <td>{{ entry.race.round }}</td>
             <td>
+                {% if entry.is_cancelled %}
+                    {{ entry.race.name }}
+                {% else %}
                 <a class="race-link" href="{{ url_for('award_round', round_num=entry.race.round) }}">
                     {{ entry.race.name }}
                 </a>
+                {% endif %}
                 {% if entry.race.sprint %}<span class="badge badge-sprint">Sprint</span>{% endif %}
             </td>
             <td>{{ entry.race.race_time_utc[:10] }}</td>
             <td>
-                {% if entry.has_results %}
+                {% if entry.is_cancelled %}
+                    <span class="badge badge-cancelled">Cancelled</span>
+                {% elif entry.has_results %}
                     <span class="badge badge-awarded">Scored</span>
                 {% elif entry.has_predictions %}
                     <span class="badge badge-predicted">Predicted</span>
                 {% else %}
                     No predictions yet
                 {% endif %}
+            </td>
+            <td>
+                <form method="POST" action="{{ url_for('toggle_cancel', round_num=entry.race.round) }}" style="display:inline">
+                    <button type="submit" class="btn {% if entry.is_cancelled %}btn-confirm{% else %}btn-primary{% endif %}" style="padding:0.2rem 0.6rem; font-size:0.75rem;">
+                        {% if entry.is_cancelled %}Uncancel{% else %}Cancel{% endif %}
+                    </button>
+                </form>
             </td>
         </tr>
         {% endfor %}

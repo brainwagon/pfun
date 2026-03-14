@@ -450,3 +450,17 @@ select:focus {
 .race-name-cell {
     white-space: nowrap;
 }
+
+/* Cancelled races */
+tr.cancelled {
+    opacity: 0.45;
+}
+
+tr.cancelled:hover {
+    opacity: 0.55;
+}
+
+.badge-cancelled {
+    background: #999;
+    color: #fff;
+}

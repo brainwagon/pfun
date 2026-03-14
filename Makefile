@@ -39,4 +39,4 @@ deploy:
 		sudo systemctl enable pfun && \
 		sudo systemctl restart pfun"
 
-	@echo "Deploy complete. Service running at http://$(REMOTE_HOST):5000"
+	@echo "Deploy complete. Service running at http://$(REMOTE_HOST)"
