@@ -464,3 +464,63 @@ tr.cancelled:hover {
     background: #999;
     color: #fff;
 }
+
+/* Previous year results */
+.prev-results-section {
+    background: var(--f1-white);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.prev-results-section h2 {
+    font-family: 'Racing Sans One', cursive;
+    font-size: 1.1rem;
+    margin-bottom: 0.8rem;
+}
+
+.prev-results-section h3 {
+    font-size: 0.85rem;
+    margin-bottom: 0.3rem;
+    color: var(--f1-gray);
+}
+
+.prev-results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 700px) {
+    .prev-results-grid { grid-template-columns: 1fr; }
+}
+
+.prev-results-list {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    padding-left: 2em;
+    margin: 0 0 0.5rem 0;
+}
+
+.prev-results-list .podium { font-weight: 700; font-size: 1.6rem; line-height: 1.2; }
+
+#prev-btn {
+    margin-bottom: 1rem;
+}
+
+.prev-subsection-title {
+    font-size: 0.9rem;
+    color: var(--f1-gray);
+    margin: 1rem 0 0.4rem 0;
+}
+
+.prev-subsection-title:first-of-type {
+    margin-top: 0;
+}
+
+.stats-compact {
+    font-size: 0.85rem;
+    line-height: 1.7;
+    margin: 0 0 0.5rem 0;
+}

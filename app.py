@@ -18,6 +18,8 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 PREDICTIONS_FILE = os.path.join(DATA_DIR, "predictions.json")
 RESULTS_FILE = os.path.join(DATA_DIR, "results.json")
 CANCELLED_FILE = os.path.join(DATA_DIR, "cancelled.json")
+PREV_RESULTS_FILE = os.path.join(DATA_DIR, "previous_results.json")
+PREVIOUS_YEAR = 2025
 
 PLAYERS = ["Carmen", "Mark"]
 
@@ -157,6 +159,132 @@ def deadline_warning(race):
     return None
 
 
+# -- Previous year results helpers --
+
+# Location overrides: 2026 location -> 2025 location (for mismatches)
+_LOCATION_OVERRIDES = {
+    "Miami": "Miami Gardens",
+    "Monte Carlo": "Monaco",
+    "Montreal": "Montréal",
+    "Sao Paulo": "São Paulo",
+    "Yas Marina": "Yas Island",
+    "Singapore": "Marina Bay",
+}
+_NO_PREVIOUS = {"Madrid"}
+
+_schedule_2025 = None
+
+
+def _get_2025_schedule():
+    global _schedule_2025
+    if _schedule_2025 is None:
+        _schedule_2025 = fastf1.get_event_schedule(PREVIOUS_YEAR)
+    return _schedule_2025
+
+
+def _find_2025_round(location):
+    """Find the 2025 round number for a given 2026 location. Returns (round_num, event_row) or (None, None)."""
+    if location in _NO_PREVIOUS:
+        return None, None
+    lookup = _LOCATION_OVERRIDES.get(location, location)
+    schedule = _get_2025_schedule()
+    for _, row in schedule.iterrows():
+        if row.get("RoundNumber", 0) == 0:
+            continue
+        if row.get("Location", "").lower() == lookup.lower():
+            return int(row["RoundNumber"]), row
+    return None, None
+
+
+def _get_ergast_circuit_id(location):
+    """Find the Ergast circuitId for a 2026 location by checking a recent schedule."""
+    import fastf1.ergast
+    ergast = fastf1.ergast.Ergast()
+    lookup = _LOCATION_OVERRIDES.get(location, location)
+    for year in (2025, 2024):
+        try:
+            sched = ergast.get_race_schedule(season=year)
+            for _, row in sched.iterrows():
+                if row.get("locality", "").lower() == lookup.lower():
+                    return row["circuitId"]
+        except Exception:
+            continue
+    return None
+
+
+def _build_historical_stats(circuit_id, active_abbrs):
+    """Build podium stats for active drivers at a circuit using Ergast (lightweight).
+    Returns {"race": [...], "sprint": [...]} where each entry is
+    {"abbr": "VER", "wins": N, "seconds": N, "thirds": N} sorted by wins desc.
+    Sprint entries only have {"abbr": "VER", "wins": N}.
+    """
+    import fastf1.ergast
+    ergast = fastf1.ergast.Ergast()
+
+    race_stats = {}   # abbr -> [wins, seconds, thirds]
+    sprint_stats = {}  # abbr -> wins
+
+    for year in range(2015, PREVIOUS_YEAR + 1):
+        try:
+            sched = ergast.get_race_schedule(season=year)
+            match = sched[sched["circuitId"] == circuit_id]
+            if match.empty:
+                continue
+            rnd = int(match.iloc[0]["round"])
+        except Exception:
+            continue
+
+        # Race results
+        try:
+            res = ergast.get_race_results(season=year, round=rnd)
+            if res.content:
+                for _, row in res.content[0].iterrows():
+                    abbr = row.get("driverCode", "")
+                    pos = row.get("position")
+                    if abbr not in active_abbrs or pos not in (1, 2, 3):
+                        continue
+                    if abbr not in race_stats:
+                        race_stats[abbr] = [0, 0, 0]
+                    race_stats[abbr][pos - 1] += 1
+        except Exception:
+            pass
+
+        # Sprint results
+        try:
+            res = ergast.get_sprint_results(season=year, round=rnd)
+            if res.content:
+                for _, row in res.content[0].iterrows():
+                    abbr = row.get("driverCode", "")
+                    pos = row.get("position")
+                    if abbr not in active_abbrs or pos != 1:
+                        continue
+                    sprint_stats[abbr] = sprint_stats.get(abbr, 0) + 1
+        except Exception:
+            pass
+
+    race_list = [
+        {"abbr": a, "wins": s[0], "seconds": s[1], "thirds": s[2]}
+        for a, s in race_stats.items()
+    ]
+    race_list.sort(key=lambda x: (x["wins"], x["seconds"], x["thirds"]), reverse=True)
+
+    sprint_list = [
+        {"abbr": a, "wins": w}
+        for a, w in sprint_stats.items()
+    ]
+    sprint_list.sort(key=lambda x: x["wins"], reverse=True)
+
+    return {"race": race_list, "sprint": sprint_list}
+
+
+def load_previous_results():
+    return load_json(PREV_RESULTS_FILE)
+
+
+def save_previous_results(data):
+    save_json(PREV_RESULTS_FILE, data)
+
+
 # --- Routes ---
 
 @app.route("/")
@@ -249,6 +377,62 @@ def predict_round(round_num):
         saved=saved,
         track_img=track_img,
     )
+
+
+@app.route("/predict/<int:round_num>/previous")
+def fetch_previous_results(round_num):
+    race = get_race(round_num)
+    if not race:
+        return jsonify({"available": False, "message": "Race not found"}), 404
+
+    cache = load_previous_results()
+    circuit_key = race["circuit"]
+
+    if circuit_key in cache:
+        return jsonify(cache[circuit_key])
+
+    round_2025, event = _find_2025_round(race["location"])
+    if round_2025 is None:
+        result = {"available": False, "message": "No previous race at this circuit"}
+        cache[circuit_key] = result
+        save_previous_results(cache)
+        return jsonify(result)
+
+    has_sprint = event.get("EventFormat", "") in ("sprint_shootout", "sprint_qualifying")
+    session_types = [("Q", "qualifying"), ("R", "race")]
+    if has_sprint:
+        session_types.extend([("SQ", "sprint_qualifying"), ("S", "sprint_race")])
+
+    result = {"available": True, "gp_name": event.get("EventName", ""), "sessions": {}}
+    for sess_id, sess_key in session_types:
+        try:
+            session = fastf1.get_session(PREVIOUS_YEAR, round_2025, sess_id)
+            session.load()
+            drivers_order = []
+            for _, row in session.results.iterrows():
+                pos = row.get("Position")
+                try:
+                    pos = int(pos)
+                except (TypeError, ValueError):
+                    pos = len(drivers_order) + 1
+                drivers_order.append({"pos": pos, "abbr": row["Abbreviation"]})
+            drivers_order.sort(key=lambda d: d["pos"])
+            result["sessions"][sess_key] = drivers_order
+        except Exception:
+            pass
+
+    # Historical podium stats for active drivers at this circuit
+    active_abbrs = {d["abbreviation"] for d in load_drivers()}
+    circuit_id = _get_ergast_circuit_id(race["location"])
+    if circuit_id:
+        try:
+            result["stats"] = _build_historical_stats(circuit_id, active_abbrs)
+        except Exception:
+            pass
+
+    cache[circuit_key] = result
+    save_previous_results(cache)
+    return jsonify(result)
 
 
 @app.route("/award")

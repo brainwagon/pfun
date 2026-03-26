@@ -19,6 +19,112 @@
 <div class="alert alert-success">Predictions saved!</div>
 {% endif %}
 
+<button type="button" id="prev-btn" class="btn btn-secondary" onclick="loadPreviousResults()">Show Previous Results</button>
+<span id="prev-status" style="margin-left:0.5em;"></span>
+
+<div id="prev-results" class="prev-results-section" style="display:none;">
+    <h2>Previous Results <span id="prev-gp-name" style="font-weight:normal;font-size:0.8em;"></span></h2>
+
+    <h3 class="prev-subsection-title">2025 Results</h3>
+    <div class="prev-results-grid">
+        <div id="prev-qualifying"></div>
+        <div id="prev-race"></div>
+        <div id="prev-sprint-qual"></div>
+        <div id="prev-sprint-race"></div>
+    </div>
+
+    <div id="prev-stats"></div>
+</div>
+
+<script>
+function togglePreviousResults() {
+    var section = document.getElementById('prev-results');
+    var btn = document.getElementById('prev-btn');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        btn.textContent = 'Hide Previous Results';
+    } else {
+        section.style.display = 'none';
+        btn.textContent = 'Show Previous Results';
+    }
+}
+
+function renderSession(containerId, title, drivers) {
+    if (!drivers || drivers.length === 0) return;
+    var el = document.getElementById(containerId);
+    var html = '<h3>' + title + '</h3><ol class="prev-results-list">';
+    drivers.forEach(function(d, i) {
+        var cls = i < 3 ? ' class="podium"' : '';
+        html += '<li' + cls + '>' + d.abbr + '</li>';
+    });
+    html += '</ol>';
+    el.innerHTML = html;
+}
+
+function renderStats(data) {
+    var stats = data.stats;
+    if (!stats) return;
+    var el = document.getElementById('prev-stats');
+    var html = '';
+
+    if (stats.race && stats.race.length > 0) {
+        html += '<h3 class="prev-subsection-title">Podium History at This Track (2015\u2013present)</h3>';
+        html += '<p class="stats-compact">';
+        html += stats.race.map(function(d) {
+            return '<b>' + d.abbr + '</b> ' + d.wins + '/' + d.seconds + '/' + d.thirds;
+        }).join(' &middot; ');
+        html += '</p>';
+    }
+
+    if (stats.sprint && stats.sprint.length > 0) {
+        html += '<h3 class="prev-subsection-title">Sprint Wins at This Track</h3>';
+        html += '<p class="stats-compact">';
+        html += stats.sprint.map(function(d) {
+            return '<b>' + d.abbr + '</b> ' + d.wins + 'W';
+        }).join(' &middot; ');
+        html += '</p>';
+    }
+
+    el.innerHTML = html;
+}
+
+function loadPreviousResults() {
+    var btn = document.getElementById('prev-btn');
+    var status = document.getElementById('prev-status');
+    btn.disabled = true;
+    status.textContent = 'Loading\u2026';
+    status.style.color = '';
+
+    fetch('/predict/{{ race.round }}/previous')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.available) {
+                status.textContent = data.message || 'No previous data available';
+                status.style.color = '#856404';
+                btn.disabled = false;
+                return;
+            }
+            btn.disabled = false;
+            btn.textContent = 'Hide Previous Results';
+            btn.onclick = togglePreviousResults;
+            status.textContent = '';
+            document.getElementById('prev-results').style.display = 'block';
+            document.getElementById('prev-gp-name').textContent = '(' + data.gp_name + ')';
+            var s = data.sessions;
+            renderSession('prev-qualifying', 'Qualifying', s.qualifying);
+            renderSession('prev-race', 'Race', s.race);
+            if (s.sprint_qualifying) renderSession('prev-sprint-qual', 'Sprint Qualifying', s.sprint_qualifying);
+            if (s.sprint_race) renderSession('prev-sprint-race', 'Sprint Race', s.sprint_race);
+            renderStats(data);
+        })
+        .catch(function(err) {
+            status.textContent = 'Error: ' + err.message;
+            status.style.color = '#dc2626';
+            btn.disabled = false;
+        });
+}
+</script>
+
 <form method="post">
     <table class="predict-table">
         <thead>
