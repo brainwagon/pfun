@@ -91,7 +91,7 @@ h2 {
 }
 
 .total-card {
-    background: var(--f1-dark);
+    background: linear-gradient(135deg, #0044cc, #00aaff);
     color: var(--f1-white);
     padding: 1rem 1.8rem;
     border-radius: 8px;
@@ -115,7 +115,16 @@ h2 {
 .total-card .score {
     font-size: 8rem;
     font-weight: 800;
-    color: var(--f1-red);
+    color: white;
+    text-shadow:
+        -3px -3px 0 var(--f1-dark),
+         3px -3px 0 var(--f1-dark),
+        -3px  3px 0 var(--f1-dark),
+         3px  3px 0 var(--f1-dark),
+         0   -3px 0 var(--f1-dark),
+         0    3px 0 var(--f1-dark),
+        -3px  0   0 var(--f1-dark),
+         3px  0   0 var(--f1-dark);
 }
 
 .player-avatar {
