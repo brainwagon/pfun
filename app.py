@@ -22,7 +22,7 @@ CANCELLED_FILE = os.path.join(DATA_DIR, "cancelled.json")
 PREV_RESULTS_FILE = os.path.join(DATA_DIR, "previous_results.json")
 PREVIOUS_YEAR = 2025
 
-PLAYERS = ["Carmen", "Mark", "Bottas"]
+PLAYERS = ["Carmen", "Mark", "BOT-tas"]
 
 # Map race countries to flag filenames
 COUNTRY_FLAGS = {
@@ -384,7 +384,7 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://192.168.1.139:11434/api/genera
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
 
 
-@app.route("/ai/bottas/<int:round_num>")
+@app.route("/ai/bot-tas/<int:round_num>")
 def ai_bottas_predict(round_num):
     race = get_race(round_num)
     if not race:
@@ -416,7 +416,7 @@ def ai_bottas_predict(round_num):
     cat_list = ", ".join([CATEGORY_LABELS.get(c, c) for c in cats])
     
     prompt = f"""
-    You are Valtteri Bottas, a seasoned F1 driver and expert analyst. 
+    You are BOT-tas, a seasoned F1 driver and expert analyst. 
     Your task is to predict the outcomes for the 2026 {race['name']} at {race['location']}.
     
     Current Top 10 Standings:
