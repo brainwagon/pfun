@@ -380,7 +380,7 @@ def predict_round(round_num):
     )
 
 
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://192.168.1.139:11434/api/generate")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
 
 
