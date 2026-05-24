@@ -19,13 +19,8 @@
     <div class="total-card">
         <div class="name">{{ player }}</div>
         <div class="score-row">
-            {% if player == "Carmen" %}
-            <img class="player-avatar" src="{{ url_for('static', filename='carmen_driver.png') }}" alt="Carmen">
-            {% endif %}
+            <img class="player-avatar" src="{{ url_for('static', filename=player.lower() ~ '_driver.png') }}" alt="{{ player }}">
             <div class="score">{{ totals[player] }}</div>
-            {% if player == "Mark" %}
-            <img class="player-avatar" src="{{ url_for('static', filename='mark_driver.png') }}" alt="Mark">
-            {% endif %}
         </div>
     </div>
     {% endfor %}

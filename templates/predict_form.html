@@ -20,6 +20,7 @@
 {% endif %}
 
 <button type="button" id="prev-btn" class="btn btn-secondary" onclick="loadPreviousResults()">Show Previous Results</button>
+<button type="button" id="ai-all-btn" class="btn btn-secondary" onclick="askAI()">Fill Bottas with AI</button>
 <span id="prev-status" style="margin-left:0.5em;"></span>
 
 <div id="prev-results" class="prev-results-section" style="display:none;">
@@ -88,6 +89,44 @@ function renderStats(data) {
     el.innerHTML = html;
 }
 
+function askAI(singleCat) {
+    var btn = document.getElementById('ai-all-btn');
+    var status = document.getElementById('prev-status');
+    status.textContent = 'Bottas is thinking...';
+    status.style.color = '#0074d9';
+    if (!singleCat) btn.disabled = true;
+
+    fetch('/ai/bottas/{{ race.round }}')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) {
+                status.textContent = 'AI Error: ' + data.error;
+                status.style.color = '#dc2626';
+                if (!singleCat) btn.disabled = false;
+                return;
+            }
+            var preds = data.prediction;
+            if (singleCat) {
+                if (preds[singleCat]) {
+                    document.querySelector('select[name="Bottas_' + singleCat + '"]').value = preds[singleCat];
+                }
+            } else {
+                for (var cat in preds) {
+                    var sel = document.querySelector('select[name="Bottas_' + cat + '"]');
+                    if (sel) sel.value = preds[cat];
+                }
+            }
+            status.textContent = 'Bottas has made his picks!';
+            status.style.color = '#16a34a';
+            if (!singleCat) btn.disabled = false;
+        })
+        .catch(function(err) {
+            status.textContent = 'Error: ' + err.message;
+            status.style.color = '#dc2626';
+            if (!singleCat) btn.disabled = false;
+        });
+}
+
 function loadPreviousResults() {
     var btn = document.getElementById('prev-btn');
     var status = document.getElementById('prev-status');
@@ -141,6 +180,19 @@ function loadPreviousResults() {
                 <td class="cat-label">{{ cat_labels[cat] }}</td>
                 {% for player in players %}
                 <td>
+                    {% if player == "Bottas" %}
+                    <div style="display: flex; gap: 0.3rem;">
+                        <select name="{{ player }}_{{ cat }}" style="flex: 1;">
+                            <option value="">-- Select --</option>
+                            {% for d in drivers %}
+                            <option value="{{ d.abbreviation }}" {% if existing.get(player, {}).get(cat) == d.abbreviation %}selected{% endif %}>
+                                {{ d.abbreviation }} - {{ d.first_name }} {{ d.last_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" class="btn btn-secondary ai-btn" onclick="askAI('{{ cat }}')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">AI</button>
+                    </div>
+                    {% else %}
                     <select name="{{ player }}_{{ cat }}">
                         <option value="">-- Select --</option>
                         {% for d in drivers %}
@@ -149,6 +201,7 @@ function loadPreviousResults() {
                         </option>
                         {% endfor %}
                     </select>
+                    {% endif %}
                 </td>
                 {% endfor %}
             </tr>

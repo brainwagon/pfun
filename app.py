@@ -1,5 +1,6 @@
 import json
 import os
+import requests
 from datetime import datetime, timezone, timedelta
 
 import fastf1
@@ -21,7 +22,7 @@ CANCELLED_FILE = os.path.join(DATA_DIR, "cancelled.json")
 PREV_RESULTS_FILE = os.path.join(DATA_DIR, "previous_results.json")
 PREVIOUS_YEAR = 2025
 
-PLAYERS = ["Carmen", "Mark"]
+PLAYERS = ["Carmen", "Mark", "Bottas"]
 
 # Map race countries to flag filenames
 COUNTRY_FLAGS = {
@@ -377,6 +378,95 @@ def predict_round(round_num):
         saved=saved,
         track_img=track_img,
     )
+
+
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
+
+
+@app.route("/ai/bottas/<int:round_num>")
+def ai_bottas_predict(round_num):
+    race = get_race(round_num)
+    if not race:
+        return jsonify({"error": "Race not found"}), 404
+
+    drivers = load_drivers()
+    
+    # Gather context: Standings
+    import fastf1.ergast
+    ergast = fastf1.ergast.Ergast()
+    ds, _ = _fetch_standings(ergast, 2026)
+    if not ds:
+        ds, _ = _fallback_standings_from_2025(ergast)
+    
+    standings_str = "\n".join([f"{r['position']}. {r['givenName']} {r['familyName']} ({r['constructorName']}) - {r['points']} pts" for r in ds[:10]])
+
+    # Gather context: History
+    cache = load_previous_results()
+    history = cache.get(race["circuit"])
+    history_str = "No historical data available."
+    if history and history.get("available"):
+        race_history = history.get("sessions", {}).get("race", [])
+        history_str = "Previous Race Results:\n" + "\n".join([f"{r['pos']}. {r['abbr']}" for r in race_history[:5]])
+        if "stats" in history:
+            stats = history["stats"].get("race", [])
+            history_str += "\nPodium History:\n" + "\n".join([f"{s['abbr']}: {s['wins']} wins, {s['seconds']} 2nds, {s['thirds']} 3rds" for s in stats[:5]])
+
+    cats = categories_for_race(race)
+    cat_list = ", ".join([CATEGORY_LABELS.get(c, c) for c in cats])
+    
+    prompt = f"""
+    You are Valtteri Bottas, a seasoned F1 driver and expert analyst. 
+    Your task is to predict the outcomes for the 2026 {race['name']} at {race['location']}.
+    
+    Current Top 10 Standings:
+    {standings_str}
+    
+    Circuit History ({race['circuit']}):
+    {history_str}
+    
+    Available Drivers: {", ".join([d['abbreviation'] for d in drivers])}
+    
+    Categories to predict: {cat_list}
+    
+    Provide your picks in a concise JSON format. For each category, pick the driver's 3-letter abbreviation.
+    Categories keys are: {", ".join(cats)}
+    
+    Example response:
+    {{
+        "pole": "VER",
+        "winner": "VER",
+        "second": "NOR",
+        "third": "HAM",
+        "surprise": "HUL",
+        "flop": "PER"
+    }}
+    
+    Return ONLY the JSON object. Be bold but realistic.
+    """
+
+    try:
+        resp = requests.post(OLLAMA_URL, json={
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False,
+            "format": "json"
+        }, timeout=30)
+        resp.raise_for_status()
+        ai_data = resp.json()
+        prediction = json.loads(ai_data.get("response", "{}"))
+        
+        # Validate abbreviations
+        valid_abbrs = {d["abbreviation"] for d in drivers}
+        cleaned = {}
+        for cat in cats:
+            val = prediction.get(cat, "").upper()
+            if val in valid_abbrs:
+                cleaned[cat] = val
+        
+        return jsonify({"prediction": cleaned, "raw": ai_data.get("response")})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/predict/<int:round_num>/previous")

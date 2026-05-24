@@ -40,3 +40,10 @@ deploy:
 		sudo systemctl restart pfun"
 
 	@echo "Deploy complete. Service running at http://$(REMOTE_HOST)"
+
+.PHONY: pull-data
+
+pull-data:
+	mkdir -p data
+	rsync -az $(REMOTE_USER)@$(REMOTE_HOST):$(REMOTE_DIR)/data/ data/
+	@echo "Pulled live data files into data/"
