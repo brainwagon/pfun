@@ -439,7 +439,9 @@ def ai_bottas_predict(round_num):
         "second": "NOR",
         "third": "HAM",
         "surprise": "HUL",
-        "flop": "PER"
+        "flop": "PER",
+        "sprint_pole": "VER",
+        "sprint_winner": "VER"
     }}
     
     Return ONLY the JSON object. Be bold but realistic.
