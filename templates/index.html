@@ -7,10 +7,46 @@
 <h1>2026 Season Standings</h1>
 
 {% if next_race %}
-<div class="countdown-box">
-    <span class="countdown-label">Next Race:</span>
-    <span class="countdown-race">{{ next_race.name }}</span>
-    <span id="countdown" data-target="{{ next_race.race_time_utc }}"></span>
+<div class="countdown-box" style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem;">
+    <div class="countdown-header">
+        <span class="countdown-label">Next Race:</span>
+        <span class="countdown-race" style="font-weight: 600;">{{ next_race.name }}</span>
+    </div>
+    <div class="sessions-countdowns" style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: flex-end; font-size: 0.9rem;">
+        {% if next_race.fp1_time_utc %}
+        <div class="session-countdown">
+            <strong>FP1:</strong> <span class="timer" data-target="{{ next_race.fp1_time_utc }}"></span>
+        </div>
+        {% endif %}
+        {% if next_race.fp2_time_utc %}
+        <div class="session-countdown">
+            <strong>FP2:</strong> <span class="timer" data-target="{{ next_race.fp2_time_utc }}"></span>
+        </div>
+        {% endif %}
+        {% if next_race.sprint_qualifying_time_utc %}
+        <div class="session-countdown">
+            <strong>Sprint Qualy:</strong> <span class="timer" data-target="{{ next_race.sprint_qualifying_time_utc }}"></span>
+        </div>
+        {% endif %}
+        {% if next_race.fp3_time_utc %}
+        <div class="session-countdown">
+            <strong>FP3:</strong> <span class="timer" data-target="{{ next_race.fp3_time_utc }}"></span>
+        </div>
+        {% endif %}
+        {% if next_race.sprint_time_utc %}
+        <div class="session-countdown">
+            <strong>Sprint:</strong> <span class="timer" data-target="{{ next_race.sprint_time_utc }}"></span>
+        </div>
+        {% endif %}
+        {% if next_race.qualifying_time_utc %}
+        <div class="session-countdown">
+            <strong>Qualy:</strong> <span class="timer" data-target="{{ next_race.qualifying_time_utc }}"></span>
+        </div>
+        {% endif %}
+        <div class="session-countdown">
+            <strong>Race:</strong> <span class="timer" data-target="{{ next_race.race_time_utc }}"></span>
+        </div>
+    </div>
 </div>
 {% endif %}
 
@@ -85,19 +121,22 @@
 {% if next_race %}
 <script>
 (function() {
-    var el = document.getElementById('countdown');
-    var target = new Date(el.dataset.target).getTime();
+    var timers = document.querySelectorAll('.timer');
     function update() {
-        var diff = target - Date.now();
-        if (diff <= 0) { el.textContent = 'Race started!'; return; }
-        var d = Math.floor(diff / 86400000);
-        var h = Math.floor((diff % 86400000) / 3600000);
-        var m = Math.floor((diff % 3600000) / 60000);
-        var parts = [];
-        if (d > 0) parts.push(d + 'd');
-        parts.push(h + 'h');
-        parts.push(m + 'm');
-        el.textContent = parts.join(' ');
+        var now = Date.now();
+        timers.forEach(function(el) {
+            var target = new Date(el.dataset.target).getTime();
+            var diff = target - now;
+            if (diff <= 0) { el.textContent = 'Started!'; return; }
+            var d = Math.floor(diff / 86400000);
+            var h = Math.floor((diff % 86400000) / 3600000);
+            var m = Math.floor((diff % 3600000) / 60000);
+            var parts = [];
+            if (d > 0) parts.push(d + 'd');
+            parts.push(h + 'h');
+            parts.push(m + 'm');
+            el.textContent = parts.join(' ');
+        });
     }
     update();
     setInterval(update, 60000);

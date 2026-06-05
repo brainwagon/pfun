@@ -145,9 +145,9 @@ h2 {
     font-weight: 600;
 }
 
-#countdown {
+.timer {
     font-family: "Racing Sans One", monospace;
-    font-size: 1.4rem;
+    font-size: 1.2rem;
     color: var(--f1-red);
 }
 
