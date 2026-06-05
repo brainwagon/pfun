@@ -10,7 +10,7 @@
 <div class="countdown-box" style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem;">
     <div class="countdown-header">
         <span class="countdown-label">Next Race:</span>
-        <span class="countdown-race" style="font-weight: 600;">{{ next_race.name }}</span>
+        <span class="countdown-race">{{ next_race.name }}</span>
     </div>
     <div class="sessions-countdowns" style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: flex-end; font-size: 0.9rem;">
         {% if next_race.fp1_time_utc %}
