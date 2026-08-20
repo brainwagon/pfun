@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import requests
 from datetime import datetime, timezone, timedelta
 
@@ -382,6 +383,9 @@ def predict_round(round_num):
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://192.168.1.139:11434/api/generate")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
+# Must stay comfortably under the gunicorn worker timeout (see pfun.service),
+# otherwise the worker is killed and the client gets an HTML error page.
+OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "120"))
 
 
 @app.route("/ai/bot-tas/<int:round_num>")
@@ -392,14 +396,19 @@ def ai_bottas_predict(round_num):
 
     drivers = load_drivers()
     
-    # Gather context: Standings
-    import fastf1.ergast
-    ergast = fastf1.ergast.Ergast()
-    ds, _ = _fetch_standings(ergast, 2026)
-    if not ds:
-        ds, _ = _fallback_standings_from_2025(ergast)
-    
-    standings_str = "\n".join([f"{r['position']}. {r['givenName']} {r['familyName']} ({r['constructorName']}) - {r['points']} pts" for r in ds[:10]])
+    # Gather context: Standings. Never let a slow/failing Ergast call sink the
+    # whole request — the AI picks are still useful without standings.
+    ds = []
+    try:
+        import fastf1.ergast
+        ergast = fastf1.ergast.Ergast()
+        ds, _ = _fetch_standings(ergast, 2026)
+        if not ds:
+            ds, _ = _fallback_standings_from_2025(ergast)
+    except Exception:
+        ds = []
+
+    standings_str = "\n".join([f"{r['position']}. {r['givenName']} {r['familyName']} ({r['constructorName']}) - {r['points']} pts" for r in ds[:10]]) or "No standings available."
 
     # Gather context: History
     cache = load_previous_results()
@@ -415,57 +424,109 @@ def ai_bottas_predict(round_num):
     cats = categories_for_race(race)
     cat_list = ", ".join([CATEGORY_LABELS.get(c, c) for c in cats])
     
+    valid_abbrs = [d["abbreviation"] for d in drivers]
+    # Spell the roster out in full: given only bare 3-letter codes the model
+    # falls back on abbreviations it remembers from other seasons.
+    roster_str = "\n".join(
+        f"{d['abbreviation']} = {d['first_name']} {d['last_name']} ({d['team']})" for d in drivers
+    )
+    # Build the example from the real roster so it can never demonstrate a
+    # driver who is not racing this season, or a category not being asked for.
+    example = {c: valid_abbrs[i % len(valid_abbrs)] for i, c in enumerate(cats)}
+    example_str = json.dumps(example, indent=4)
+
     prompt = f"""
-    You are BOT-tas, a seasoned F1 driver and expert analyst. 
+    You are BOT-tas, a seasoned F1 driver and expert analyst.
     Your task is to predict the outcomes for the 2026 {race['name']} at {race['location']}.
-    
+
     Current Top 10 Standings:
     {standings_str}
-    
+
     Circuit History ({race['circuit']}):
     {history_str}
-    
-    Available Drivers: {", ".join([d['abbreviation'] for d in drivers])}
-    
+
+    The 2026 grid is exactly these {len(drivers)} drivers, and no others:
+    {roster_str}
+
     Categories to predict: {cat_list}
-    
-    Provide your picks in a concise JSON format. For each category, pick the driver's 3-letter abbreviation.
-    Categories keys are: {", ".join(cats)}
-    
-    Example response:
-    {{
-        "pole": "VER",
-        "winner": "VER",
-        "second": "NOR",
-        "third": "HAM",
-        "surprise": "HUL",
-        "flop": "PER",
-        "sprint_pole": "VER",
-        "sprint_winner": "VER"
-    }}
-    
+
+    RULES:
+    - Every value MUST be one of these exact codes: {", ".join(valid_abbrs)}
+    - Do NOT invent codes, and do NOT name drivers who are absent from the list
+      above. Any code outside that list is a wrong answer.
+    - Return a value for EVERY one of these keys: {", ".join(cats)}
+    - Use the 3-letter code, not the driver's name.
+
+    Example of the required format:
+    {example_str}
+
     Return ONLY the JSON object. Be bold but realistic.
     """
 
-    try:
+    # Constrain the model at decode time so an out-of-roster code cannot be
+    # produced in the first place (Ollama structured outputs).
+    schema = {
+        "type": "object",
+        "properties": {c: {"type": "string", "enum": valid_abbrs} for c in cats},
+        "required": list(cats),
+    }
+
+    # OLLAMA_TIMEOUT is the budget for the whole request, not per call — the
+    # fallback and retry below must not stack past the gunicorn worker limit.
+    deadline = time.monotonic() + OLLAMA_TIMEOUT
+
+    def _ask(fmt):
+        remaining = deadline - time.monotonic()
+        if remaining < 5:
+            raise TimeoutError("BOT-tas ran out of time")
         resp = requests.post(OLLAMA_URL, json={
             "model": OLLAMA_MODEL,
             "prompt": prompt,
             "stream": False,
-            "format": "json"
-        }, timeout=30)
+            "format": fmt,
+        }, timeout=remaining)
         resp.raise_for_status()
-        ai_data = resp.json()
-        prediction = json.loads(ai_data.get("response", "{}"))
-        
-        # Validate abbreviations
-        valid_abbrs = {d["abbreviation"] for d in drivers}
-        cleaned = {}
+        return resp.json()
+
+    # Accept a full or last name too, in case the model ignores the code rule.
+    name_to_abbr = {}
+    for d in drivers:
+        name_to_abbr[d["last_name"].upper()] = d["abbreviation"]
+        name_to_abbr[f"{d['first_name']} {d['last_name']}".upper()] = d["abbreviation"]
+
+    def _clean(prediction):
+        valid = set(valid_abbrs)
+        out = {}
         for cat in cats:
-            val = prediction.get(cat, "").upper()
-            if val in valid_abbrs:
-                cleaned[cat] = val
-        
+            val = str(prediction.get(cat, "")).strip().upper()
+            if val in valid:
+                out[cat] = val
+            elif val in name_to_abbr:
+                out[cat] = name_to_abbr[val]
+        return out
+
+    try:
+        try:
+            ai_data = _ask(schema)
+        except Exception:
+            # Older Ollama builds reject a schema — fall back to plain JSON mode
+            # and lean on the prompt plus validation instead.
+            ai_data = _ask("json")
+
+        cleaned = _clean(json.loads(ai_data.get("response") or "{}"))
+
+        # One retry if the model still left categories unfilled.
+        if len(cleaned) < len(cats):
+            try:
+                retry = _ask(schema)
+                merged = _clean(json.loads(retry.get("response") or "{}"))
+                merged.update(cleaned)
+                if len(merged) > len(cleaned):
+                    cleaned = merged
+                    ai_data = retry
+            except Exception:
+                pass
+
         return jsonify({"prediction": cleaned, "raw": ai_data.get("response")})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
