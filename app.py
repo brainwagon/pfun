@@ -80,9 +80,21 @@ def load_races():
 
 
 def load_drivers():
+    """Every driver seen this season, including those no longer on the grid.
+
+    Saved predictions and results reference drivers by abbreviation, so past
+    races only render correctly if drivers are kept here once they appear.
+    """
     drivers = load_json(DRIVERS_FILE, [])
+    for d in drivers:
+        d.setdefault("status", "active")
     drivers.sort(key=lambda d: d["abbreviation"])
     return drivers
+
+
+def active_drivers():
+    """Only drivers currently on the grid — for picking, not for lookups."""
+    return [d for d in load_drivers() if d.get("status") == "active"]
 
 
 def load_predictions():
@@ -394,8 +406,9 @@ def ai_bottas_predict(round_num):
     if not race:
         return jsonify({"error": "Race not found"}), 404
 
-    drivers = load_drivers()
-    
+    # BOT-tas predicts a race, so it picks from the current grid only.
+    drivers = active_drivers()
+
     # Gather context: Standings. Never let a slow/failing Ergast call sink the
     # whole request — the AI picks are still useful without standings.
     ds = []

@@ -1,0 +1,18 @@
+{
+  "_comment": "Hand-maintained. Wins over the Jolpica feed, which only reports drivers who have completed a session and so lags any change announced between race weekends. Entries here are merged over the feed's grid; abbreviations listed in 'out' are marked out. Delete an entry once the feed catches up (i.e. once that driver has actually raced in the new seat).",
+  "drivers": {
+    "LAW": {
+      "first_name": "Liam",
+      "last_name": "Lawson",
+      "nationality": "New Zealander",
+      "team": "Red Bull Racing"
+    },
+    "TSU": {
+      "first_name": "Yuki",
+      "last_name": "Tsunoda",
+      "nationality": "Japanese",
+      "team": "Racing Bulls"
+    }
+  },
+  "out": ["HAD"]
+}

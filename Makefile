@@ -3,8 +3,8 @@ REMOTE_HOST = 192.168.1.210
 REMOTE_DIR = /opt/pfun
 SSH = ssh $(REMOTE_USER)@$(REMOTE_HOST)
 
-APP_FILES = app.py requirements.txt pfun.service \
-            2026_f1_races.json 2026_f1_drivers.json
+APP_FILES = app.py requirements.txt pfun.service refresh_roster.py \
+            2026_f1_races.json 2026_f1_drivers.json roster_overrides.json
 
 DIRS = templates static flags data fastf1_cache
 
@@ -47,3 +47,9 @@ pull-data:
 	mkdir -p data
 	rsync -az $(REMOTE_USER)@$(REMOTE_HOST):$(REMOTE_DIR)/data/ data/
 	@echo "Pulled live data files into data/"
+
+.PHONY: refresh-roster
+
+# Dry run by default; apply with: make refresh-roster ARGS=--write
+refresh-roster:
+	@python refresh_roster.py $(ARGS)

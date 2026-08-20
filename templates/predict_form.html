@@ -197,8 +197,8 @@ function loadPreviousResults() {
                         <select name="{{ player }}_{{ cat }}" style="flex: 1;">
                             <option value="">-- Select --</option>
                             {% for d in drivers %}
-                            <option value="{{ d.abbreviation }}" {% if existing.get(player, {}).get(cat) == d.abbreviation %}selected{% endif %}>
-                                {{ d.abbreviation }} - {{ d.first_name }} {{ d.last_name }}
+                            <option value="{{ d.abbreviation }}" {% if existing.get(player, {}).get(cat) == d.abbreviation %}selected{% endif %}{% if d.status != 'active' %} class="driver-out"{% endif %}>
+                                {{ d.abbreviation }} - {{ d.first_name }} {{ d.last_name }}{% if d.status != 'active' %} (out){% endif %}
                             </option>
                             {% endfor %}
                         </select>
@@ -208,8 +208,8 @@ function loadPreviousResults() {
                     <select name="{{ player }}_{{ cat }}">
                         <option value="">-- Select --</option>
                         {% for d in drivers %}
-                        <option value="{{ d.abbreviation }}" {% if existing.get(player, {}).get(cat) == d.abbreviation %}selected{% endif %}>
-                            {{ d.abbreviation }} - {{ d.first_name }} {{ d.last_name }}
+                        <option value="{{ d.abbreviation }}" {% if existing.get(player, {}).get(cat) == d.abbreviation %}selected{% endif %}{% if d.status != 'active' %} class="driver-out"{% endif %}>
+                            {{ d.abbreviation }} - {{ d.first_name }} {{ d.last_name }}{% if d.status != 'active' %} (out){% endif %}
                         </option>
                         {% endfor %}
                     </select>

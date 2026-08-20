@@ -536,3 +536,9 @@ tr.cancelled:hover {
     line-height: 1.7;
     margin: 0 0 0.5rem 0;
 }
+
+/* Drivers no longer on the grid: still selectable, but visibly set apart. */
+option.driver-out {
+    color: #9ca3af;
+    font-style: italic;
+}
