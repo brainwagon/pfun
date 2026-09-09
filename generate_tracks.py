@@ -8,6 +8,7 @@ import sys
 import fastf1
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.collections import LineCollection
 
 # FastF1 cache directory
@@ -18,7 +19,8 @@ MEDIUM_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "static", "medium_tr
 RACES_FILE = os.path.join(os.path.dirname(__file__), "2026_f1_races.json")
 
 # Map circuit names from 2026_f1_races.json to (year, FastF1 GP name) tuples.
-# Madrid is new for 2026 with no historical data — maps to None.
+# Madrid is new for 2026 with no FastF1 data yet — uses a hand-traced
+# GeoJSON loop (bacinger/f1-circuits) instead of FastF1.
 CIRCUIT_LOOKUP = {
     "Albert Park Circuit": (2024, "Australian Grand Prix"),
     "Shanghai International Circuit": (2024, "Chinese Grand Prix"),
@@ -35,7 +37,8 @@ CIRCUIT_LOOKUP = {
     "Hungaroring": (2024, "Hungarian Grand Prix"),
     "Circuit Zandvoort": (2024, "Dutch Grand Prix"),
     "Autodromo Nazionale Monza": (2024, "Italian Grand Prix"),
-    "Circuito IFEMA Madrid": None,
+    "Circuito IFEMA Madrid": os.path.join(
+        os.path.dirname(__file__), "2026_madring_track.geojson"),
     "Baku City Circuit": (2024, "Azerbaijan Grand Prix"),
     "Marina Bay Street Circuit": (2024, "Singapore Grand Prix"),
     "Circuit of the Americas": (2024, "United States Grand Prix"),
@@ -68,6 +71,27 @@ def get_track_data(year, gp_name):
     circuit_info = session.get_circuit_info()
 
     return pos_data[["X", "Y"]], circuit_info
+
+
+def get_geojson_track_data(path):
+    """Load a hand-traced circuit loop from GeoJSON, projected to metres."""
+    with open(path) as f:
+        data = json.load(f)
+    coords = data["features"][0]["geometry"]["coordinates"]
+    lon0, lat0 = coords[0]
+    lat0_rad = np.radians(lat0)
+    x = np.array([np.radians(lon - lon0) * np.cos(lat0_rad) * 6371000
+                  for lon, _ in coords])
+    y = np.array([np.radians(lat - lat0) * 6371000 for _, lat in coords])
+    return x, y
+
+
+class GeoJSONCircuitInfo:
+    """Minimal stand-in for FastF1's CircuitInfo (no corner metadata)."""
+
+    def __init__(self):
+        self.rotation = 0
+        self.corners = pd.DataFrame()
 
 
 def process_track_coordinates(pos_data, circuit_info):
@@ -371,10 +395,14 @@ def main():
             render_placeholder_medium(medium_output_path)
             continue
 
-        year, gp_name = lookup
+        year, gp_name = lookup if isinstance(lookup, tuple) else (None, None)
         try:
-            pos_data, circuit_info = get_track_data(year, gp_name)
-            x, y = process_track_coordinates(pos_data, circuit_info)
+            if isinstance(lookup, str):
+                x, y = get_geojson_track_data(lookup)
+                circuit_info = GeoJSONCircuitInfo()
+            else:
+                pos_data, circuit_info = get_track_data(year, gp_name)
+                x, y = process_track_coordinates(pos_data, circuit_info)
             render_track(x, y, circuit_info, race_name, country, output_path)
             render_track_small(x, y, small_output_path)
             render_track_medium(x, y, medium_output_path)
