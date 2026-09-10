@@ -139,6 +139,41 @@ def categories_for_race(race):
     return list(BASE_CATEGORIES)
 
 
+# One-line character profile per 2026 circuit, keyed by the "circuit" field in
+# 2026_f1_races.json. Feeds BOT-tas so it can match car/driver strengths to
+# the track instead of assuming recent form transfers everywhere.
+CIRCUIT_TRAITS = {
+    "Albert Park Circuit": "Fast flowing semi-street park track; medium-high downforce; overtaking moderate; smooth surface, low tyre wear.",
+    "Shanghai International Circuit": "Long back straight with a heavy-braking hairpin; medium downforce; overtaking easy on the main straight; abrasive surface, high tyre wear.",
+    "Suzuka International Racing Course": "High-downforce figure-8 with technical esses; overtaking hard (mainly turn 1); medium tyre wear; precision rewarded.",
+    "Bahrain International Circuit": "Power track with heavy braking zones; overtaking easy (multiple DRS zones); high tyre wear on an abrasive surface.",
+    "Jeddah Corniche Circuit": "Fastest street circuit, very high average speed and close walls; medium downforce; overtaking moderate; low tyre wear.",
+    "Miami International Autodrome": "Temporary street-style track, bumpy with three straights; low-medium downforce; overtaking easy into turn 1; low tyre wear.",
+    "Circuit Gilles Villeneuve": "Low-downforce stop-go track with punishing walls and kerbs; overtaking easy into the final chicane; low tyre wear.",
+    "Circuit de Monaco": "Slowest, tightest street track; maximum downforce; overtaking nearly impossible — qualifying position is decisive.",
+    "Circuit de Barcelona-Catalunya": "Medium-high downforce with a long run into turn 1; overtaking moderate; abrasive surface, high tyre wear.",
+    "Red Bull Ring": "Short lap with big elevation changes; medium downforce; overtaking easy on long straights; low tyre wear.",
+    "Silverstone Circuit": "High-speed flowing corners; medium-high downforce; overtaking moderate; medium-high tyre wear.",
+    "Circuit de Spa-Francorchamps": "Longest lap, low-medium downforce, changeable weather; overtaking easy down the Kemmel straight.",
+    "Hungaroring": "Tight and twisty, often called Monaco without the walls; medium-high downforce; overtaking hard; hot track, medium tyre wear.",
+    "Circuit Zandvoort": "Short lap with banked corners, street-like walls; medium-high downforce; overtaking hard; low-medium tyre wear.",
+    "Autodromo Nazionale Monza": "Temple of speed, lowest downforce, slipstream and braking power critical; overtaking easy; low tyre wear.",
+    "Circuito IFEMA Madrid": "Brand-new semi-street circuit (Madring) with slow technical sections; overtaking limited; medium tyre wear; no prior form guide.",
+    "Baku City Circuit": "Narrow castle section then a 2.2km flat-out straight; low-medium downforce; overtaking easy on the straight; low tyre wear.",
+    "Marina Bay Street Circuit": "Humid night street race, bumpy, maximum downforce; overtaking moderate at best; low tyre wear.",
+    "Circuit of the Americas": "Technical first sector, big elevation changes, long back straight; medium downforce; overtaking easy into turn 1; medium tyre wear.",
+    "Autodromo Hermanos Rodriguez": "High altitude thins the air, cutting downforce and cooling; overtaking moderate on the run to turn 1; low tyre wear.",
+    "Autodromo Jose Carlos Pace (Interlagos)": "Short bumpy anticlockwise lap with elevation change, rain is common; medium downforce; overtaking moderate; low-medium tyre wear.",
+    "Las Vegas Strip Circuit": "Cold night race, low downforce and very long straights; overtaking easy; low tyre wear but cold grip is tricky.",
+    "Lusail International Circuit": "Flowing high-speed night track with aggressive kerbs; medium-high downforce; overtaking moderate; high tyre wear.",
+    "Yas Marina Circuit": "Twilight race, low-medium downforce with long straights; overtaking moderate-easy; low tyre wear, grip builds during the race.",
+}
+
+
+def circuit_traits_str(circuit):
+    return CIRCUIT_TRAITS.get(circuit, "No circuit profile available.")
+
+
 def driver_map():
     """abbreviation -> driver dict"""
     return {d["abbreviation"]: d for d in load_drivers()}
@@ -393,11 +428,14 @@ def predict_round(round_num):
     )
 
 
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://192.168.1.139:11434/api/generate")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
+OPENCODE_URL = os.environ.get(
+    "OPENCODE_URL", "https://opencode.ai/zen/go/v1/chat/completions"
+)
+OPENCODE_MODEL = os.environ.get("OPENCODE_MODEL", "glm-5.3-flash")
 # Must stay comfortably under the gunicorn worker timeout (see pfun.service),
 # otherwise the worker is killed and the client gets an HTML error page.
-OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "120"))
+OPENCODE_TIMEOUT = int(os.environ.get("OPENCODE_TIMEOUT", "120"))
+OPENCODE_API_KEY = os.environ.get("OPENCODE_GO_API_KEY", "")
 
 
 @app.route("/ai/bot-tas/<int:round_num>")
@@ -411,17 +449,49 @@ def ai_bottas_predict(round_num):
 
     # Gather context: Standings. Never let a slow/failing Ergast call sink the
     # whole request — the AI picks are still useful without standings.
-    ds = []
+    ds, cs = [], []
     try:
         import fastf1.ergast
         ergast = fastf1.ergast.Ergast()
-        ds, _ = _fetch_standings(ergast, 2026)
+        ds, cs = _fetch_standings(ergast, 2026)
         if not ds:
-            ds, _ = _fallback_standings_from_2025(ergast)
+            ds, cs = _fallback_standings_from_2025(ergast)
     except Exception:
-        ds = []
+        ds, cs = [], []
 
-    standings_str = "\n".join([f"{r['position']}. {r['givenName']} {r['familyName']} ({r['constructorName']}) - {r['points']} pts" for r in ds[:10]]) or "No standings available."
+    # Show the whole grid, not just the top 10: surprise/flop picks can come
+    # from any active driver, so everyone needs current data. Drivers who have
+    # not yet scored are appended at the end so no one is invisible.
+    def _norm(name):
+        import unicodedata
+        return "".join(
+            c for c in unicodedata.normalize("NFKD", name.lower())
+            if not unicodedata.combining(c)
+        )
+
+    standings_str = "\n".join(
+        [f"{r['position']}. {r['givenName']} {r['familyName']} ({r['constructorName']}) - {r['points']} pts" for r in ds]
+    )
+    if drivers and ds:
+        # Ergast spells names differently from our roster ("Andrea Kimi"
+        # Antonelli, "Hülkenberg"), so match on the accent-stripped surname.
+        ranked_names = {_norm(r["familyName"]) for r in ds}
+        unranked = [
+            f"{d['first_name']} {d['last_name']} ({d['team']}) - no points yet"
+            for d in drivers
+            if _norm(d["last_name"]) not in ranked_names
+        ]
+        if unranked:
+            standings_str += "\nNot yet classified: " + "; ".join(unranked)
+    else:
+        standings_str = standings_str or "No standings available."
+
+    if cs:
+        team_str = "\n".join(
+            f"{r['constructorName']} - {r['points']} pts" for r in cs
+        )
+    else:
+        team_str = "No team standings available."
 
     # Gather context: History
     cache = load_previous_results()
@@ -433,6 +503,38 @@ def ai_bottas_predict(round_num):
         if "stats" in history:
             stats = history["stats"].get("race", [])
             history_str += "\nPodium History:\n" + "\n".join([f"{s['abbr']}: {s['wins']} wins, {s['seconds']} 2nds, {s['thirds']} 3rds" for s in stats[:5]])
+
+    # Gather context: the 2026 season so far. The model's training data
+    # predates this season, so the graded actuals from earlier rounds are the
+    # strongest signal it can get about current form.
+    season_lines = []
+    try:
+        results = load_results()
+        for key in sorted(results, key=int):
+            rnd = int(key)
+            if rnd >= round_num:
+                continue
+            actuals = results[key].get("actuals") or {}
+            if not any(actuals.get(c) for c in ("winner", "pole")):
+                continue
+            past = get_race(rnd) or {}
+            parts = []
+            if actuals.get("winner"):
+                parts.append(
+                    f"P1 {actuals['winner']} P2 {actuals.get('second', '?')} "
+                    f"P3 {actuals.get('third', '?')}"
+                )
+            if actuals.get("pole"):
+                parts.append(f"pole {actuals['pole']}")
+            if actuals.get("sprint_winner"):
+                parts.append(
+                    f"sprint win {actuals['sprint_winner']} (pole {actuals.get('sprint_pole', '?')})"
+                )
+            season_lines.append(f"R{rnd} {past.get('name', '')}: " + ", ".join(parts))
+    except Exception:
+        season_lines = []
+    # Keep the prompt compact: only the most recent rounds.
+    season_str = "\n".join(season_lines[-8:]) or "No 2026 races completed yet."
 
     cats = categories_for_race(race)
     cat_list = ", ".join([CATEGORY_LABELS.get(c, c) for c in cats])
@@ -452,18 +554,41 @@ def ai_bottas_predict(round_num):
     You are BOT-tas, a seasoned F1 driver and expert analyst.
     Your task is to predict the outcomes for the 2026 {race['name']} at {race['location']}.
 
-    Current Top 10 Standings:
+    Current Driver Standings (whole grid):
     {standings_str}
+
+    Team Standings:
+    {team_str}
 
     Circuit History ({race['circuit']}):
     {history_str}
+
+    Circuit Character:
+    {circuit_traits_str(race['circuit'])}
+
+    2026 Season So Far (graded actual results — your most reliable data, since
+    your training knowledge of this season does not exist):
+    {season_str}
 
     The 2026 grid is exactly these {len(drivers)} drivers, and no others:
     {roster_str}
 
     Categories to predict: {cat_list}
 
+    Alongside the picks, include a "reasoning" key: roughly 200 words in
+    English explaining your picks — which form, team, or track factors drove
+    each choice.
+
     RULES:
+    - Base your picks on the 2026 Season So Far results and the standings, NOT
+      on career reputation or pre-2026 team hierarchies — cars and form have
+      changed since then.
+    - Weigh the Circuit Character profile: favor the drivers and teams whose
+      strengths fit this specific track — form at recent tracks does not
+      automatically transfer.
+    - For Surprise, look across the WHOLE grid for a driver whose 2026 results
+      diverge favorably from what their team's strength suggests. For Flop,
+      do the opposite: a driver underperforming relative to their car.
     - Every value MUST be one of these exact codes: {", ".join(valid_abbrs)}
     - Do NOT invent codes, and do NOT name drivers who are absent from the list
       above. Any code outside that list is a wrong answer.
@@ -477,29 +602,53 @@ def ai_bottas_predict(round_num):
     """
 
     # Constrain the model at decode time so an out-of-roster code cannot be
-    # produced in the first place (Ollama structured outputs).
+    # produced in the first place (server-side JSON schema enforcement).
     schema = {
         "type": "object",
-        "properties": {c: {"type": "string", "enum": valid_abbrs} for c in cats},
-        "required": list(cats),
+        "properties": {
+            **{c: {"type": "string", "enum": valid_abbrs} for c in cats},
+            # The reasoning prose itself is not constrained beyond being a
+            # string; requiring it makes the model emit it, and a schema
+            # failure just falls back to plain JSON mode.
+            "reasoning": {"type": "string"},
+        },
+        "required": list(cats) + ["reasoning"],
     }
 
-    # OLLAMA_TIMEOUT is the budget for the whole request, not per call — the
+    # OPENCODE_TIMEOUT is the budget for the whole request, not per call — the
     # fallback and retry below must not stack past the gunicorn worker limit.
-    deadline = time.monotonic() + OLLAMA_TIMEOUT
+    deadline = time.monotonic() + OPENCODE_TIMEOUT
 
-    def _ask(fmt):
+    session_id = f"pfun-bottas-r{round_num}-{int(time.time())}"
+
+    def _ask(schema):
         remaining = deadline - time.monotonic()
         if remaining < 5:
             raise TimeoutError("BOT-tas ran out of time")
-        resp = requests.post(OLLAMA_URL, json={
-            "model": OLLAMA_MODEL,
-            "prompt": prompt,
+        body = {
+            "model": OPENCODE_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
             "stream": False,
-            "format": fmt,
-        }, timeout=remaining)
+        }
+        if schema:
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "prediction", "schema": schema},
+            }
+        resp = requests.post(
+            OPENCODE_URL,
+            json=body,
+            headers={
+                "Authorization": f"Bearer {OPENCODE_API_KEY}",
+                "User-Agent": "pfun-bottas/1.0",
+                "x-opencode-session": session_id,
+            },
+            timeout=remaining,
+        )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+        return {"response": content}
 
     # Accept a full or last name too, in case the model ignores the code rule.
     name_to_abbr = {}
@@ -518,29 +667,44 @@ def ai_bottas_predict(round_num):
                 out[cat] = name_to_abbr[val]
         return out
 
+    def _parse_json(text):
+        text = (text or "").strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        return json.loads(text)
+
     try:
         try:
             ai_data = _ask(schema)
         except Exception:
-            # Older Ollama builds reject a schema — fall back to plain JSON mode
-            # and lean on the prompt plus validation instead.
-            ai_data = _ask("json")
+            # The endpoint may reject a response_format schema — fall back to
+            # a plain completion and lean on the prompt plus validation instead.
+            ai_data = _ask(None)
 
-        cleaned = _clean(json.loads(ai_data.get("response") or "{}"))
+        parsed = _parse_json(ai_data.get("response"))
+        cleaned = _clean(parsed)
+        reasoning = str(parsed.get("reasoning") or "").strip()
 
         # One retry if the model still left categories unfilled.
         if len(cleaned) < len(cats):
             try:
                 retry = _ask(schema)
-                merged = _clean(json.loads(retry.get("response") or "{}"))
+                retry_parsed = _parse_json(retry.get("response"))
+                merged = _clean(retry_parsed)
                 merged.update(cleaned)
                 if len(merged) > len(cleaned):
                     cleaned = merged
                     ai_data = retry
+                    if not reasoning:
+                        reasoning = str(retry_parsed.get("reasoning") or "").strip()
             except Exception:
                 pass
 
-        return jsonify({"prediction": cleaned, "raw": ai_data.get("response")})
+        return jsonify({
+            "prediction": cleaned,
+            "reasoning": reasoning,
+            "raw": ai_data.get("response"),
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

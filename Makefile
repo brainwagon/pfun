@@ -30,6 +30,11 @@ deploy:
 	$(SSH) "test -f $(REMOTE_DIR)/data/results.json" || \
 		scp data/results.json $(REMOTE_USER)@$(REMOTE_HOST):$(REMOTE_DIR)/data/
 
+	# Write the OpenCode Go API key into the (gitignored) remote env file,
+	# picking it up from the local shell environment.
+	$(SSH) "grep -q OPENCODE_GO_API_KEY $(REMOTE_DIR)/env 2>/dev/null || \
+		echo 'OPENCODE_GO_API_KEY=$$OPENCODE_GO_API_KEY' > $(REMOTE_DIR)/env && chmod 600 $(REMOTE_DIR)/env"
+
 	# Set up Python virtual environment and install dependencies
 	$(SSH) "cd $(REMOTE_DIR) && (test -d venv || python3 -m venv venv) && venv/bin/pip install -q -r requirements.txt"
 

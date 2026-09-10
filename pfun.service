@@ -8,6 +8,7 @@ User=pfun
 Group=pfun
 WorkingDirectory=/opt/pfun
 Environment=PORT=80
+EnvironmentFile=/opt/pfun/env
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 ExecStart=/opt/pfun/venv/bin/gunicorn --bind 0.0.0.0:80 --workers 2 --timeout 180 app:app
 Restart=always

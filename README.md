@@ -9,14 +9,14 @@ A web app for three players (Carmen, Mark, and Bottas) to predict Formula 1 race
 - **Standings** — Season-long leaderboard with race-by-race point breakdowns, countdown to the next race, and deadline warnings.
 - **Race Detail** — Side-by-side view of predictions vs. actual results with visual correctness indicators.
 - **Driver & Team Standings** — Live F1 championship standings pulled from the Ergast API.
-- **BOT-tas (AI player)** — "Fill BOT-tas with AI" asks a local Ollama model for picks, given the current standings, the circuit's history, and the active grid.
+- **BOT-tas (AI player)** — "Fill BOT-tas with AI" asks GLM 5.3 Flash via the OpenCode Go API for picks, given the current standings, the circuit's history, and the active grid.
 - **Roster upkeep** — The driver roster refreshes from a live feed, and keeps drivers who have left the grid so past races and season totals stay intact.
 
 ## Tech Stack
 
 - **Backend:** Flask, Gunicorn
 - **Data:** FastF1 (race results), Ergast API (championship standings), Jolpica (driver roster)
-- **AI:** Ollama (BOT-tas's predictions), served from a host on the LAN
+- **AI:** OpenCode Go API (GLM 5.3 Flash, BOT-tas's predictions)
 - **Frontend:** Jinja2 templates, custom CSS with F1 styling
 
 ## Local Setup
@@ -95,6 +95,7 @@ actually raced in the new seat.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `5000` | Port for the local dev server |
-| `OLLAMA_URL` | `http://192.168.1.139:11434/api/generate` | Ollama endpoint for BOT-tas |
-| `OLLAMA_MODEL` | `gemma4:e4b` | Model BOT-tas uses |
-| `OLLAMA_TIMEOUT` | `120` | Budget in seconds for a whole BOT-tas request. Must stay below the gunicorn `--timeout` in `pfun.service`, or the worker is killed mid-request and the browser gets an HTML error page instead of JSON. |
+| `OPENCODE_URL` | `https://opencode.ai/zen/go/v1/chat/completions` | OpenCode Go chat completions endpoint for BOT-tas |
+| `OPENCODE_MODEL` | `glm-5.3-flash` | Model BOT-tas uses |
+| `OPENCODE_TIMEOUT` | `120` | Budget in seconds for a whole BOT-tas request. Must stay below the gunicorn `--timeout` in `pfun.service`, or the worker is killed mid-request and the browser gets an HTML error page instead of JSON. |
+| `OPENCODE_GO_API_KEY` | — | OpenCode Go API key. Read from the shell locally; on the server it lives in `/opt/pfun/env` (created by `make deploy`, not committed). |

@@ -477,6 +477,20 @@ tr.cancelled:hover {
     color: #fff;
 }
 
+/* BOT-tas reasoning text */
+.ai-reasoning {
+    background: var(--f1-white);
+    border-left: 4px solid var(--f1-red);
+    border-radius: 8px;
+    padding: 0.8rem 1.2rem;
+    margin: 1rem 0 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--f1-gray);
+    white-space: pre-wrap;
+}
+
 /* Previous year results */
 .prev-results-section {
     background: var(--f1-white);
