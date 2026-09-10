@@ -54,5 +54,12 @@
     {% endif %}
 </table>
 
+{% if bot_reasoning %}
+<div class="ai-reasoning" style="margin-top: 1.5em;">
+    <strong style="display: block; margin-bottom: 0.4em;">BOT-tas's reasoning</strong>
+    {{ bot_reasoning }}
+</div>
+{% endif %}
+
 <p style="margin-top: 1.5em;"><a href="{{ url_for('index') }}">&larr; Back to standings</a></p>
 {% endblock %}

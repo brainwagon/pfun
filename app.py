@@ -19,6 +19,7 @@ DRIVERS_FILE = os.path.join(BASE_DIR, "2026_f1_drivers.json")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 PREDICTIONS_FILE = os.path.join(DATA_DIR, "predictions.json")
 RESULTS_FILE = os.path.join(DATA_DIR, "results.json")
+BOT_REASONING_FILE = os.path.join(DATA_DIR, "bot_reasoning.json")
 CANCELLED_FILE = os.path.join(DATA_DIR, "cancelled.json")
 PREV_RESULTS_FILE = os.path.join(DATA_DIR, "previous_results.json")
 PREVIOUS_YEAR = 2025
@@ -111,6 +112,14 @@ def load_results():
 
 def save_results(data):
     save_json(RESULTS_FILE, data)
+
+
+def load_bot_reasoning():
+    return load_json(BOT_REASONING_FILE, {})
+
+
+def save_bot_reasoning(data):
+    save_json(BOT_REASONING_FILE, data)
 
 
 def load_cancelled():
@@ -700,6 +709,17 @@ def ai_bottas_predict(round_num):
             except Exception:
                 pass
 
+        # Persist the latest BOT-tas output for this round so the race detail
+        # page can show what the bot was thinking when it filled the form.
+        if cleaned:
+            store = load_bot_reasoning()
+            store[str(round_num)] = {
+                "prediction": cleaned,
+                "reasoning": reasoning,
+                "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            }
+            save_bot_reasoning(store)
+
         return jsonify({
             "prediction": cleaned,
             "reasoning": reasoning,
@@ -1114,6 +1134,7 @@ def race_detail(round_num):
         comparison.append(row)
 
     scores = existing_result.get("scores", {}) if scored else None
+    bot_reasoning = (load_bot_reasoning().get(rnd) or {}).get("reasoning", "")
     location_slug = race["location"].lower().replace(" ", "_")
     track_img = f"medium_tracks/round_{round_num:02d}_{location_slug}.png"
     return render_template(
@@ -1121,6 +1142,7 @@ def race_detail(round_num):
         race=race, comparison=comparison, players=PLAYERS, scores=scores,
         scored=scored, dmap=dmap_, track_img=track_img,
         subjective_cats=SUBJECTIVE_CATEGORIES,
+        bot_reasoning=bot_reasoning,
         cancelled=is_cancelled(round_num),
     )
 
