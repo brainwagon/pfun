@@ -22,7 +22,7 @@
 <button type="button" id="prev-btn" class="btn btn-secondary" onclick="loadPreviousResults()">Show Previous Results</button>
 <button type="button" id="ai-all-btn" class="btn btn-secondary" onclick="askAI()">Fill BOT-tas with AI</button>
 <span id="prev-status" style="margin-left:0.5em;"></span>
-<div id="ai-reasoning" class="ai-reasoning" style="display:none;"></div>
+<div id="ai-reasoning" class="ai-reasoning" {% if not bot_reasoning %}style="display:none;"{% endif %}>{% if bot_reasoning %}{{ bot_reasoning }}{% endif %}</div>
 
 <div id="prev-results" class="prev-results-section" style="display:none;">
     <h2>Previous Results <span id="prev-gp-name" style="font-weight:normal;font-size:0.8em;"></span></h2>

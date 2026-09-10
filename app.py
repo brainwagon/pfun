@@ -421,6 +421,7 @@ def predict_round(round_num):
 
     existing = predictions.get(rnd, {})
     saved = request.args.get("saved")
+    bot_reasoning = (load_bot_reasoning().get(rnd) or {}).get("reasoning", "")
     location_slug = race["location"].lower().replace(" ", "_")
     track_img = f"medium_tracks/round_{round_num:02d}_{location_slug}.png"
     return render_template(
@@ -434,6 +435,7 @@ def predict_round(round_num):
         warning=warning,
         saved=saved,
         track_img=track_img,
+        bot_reasoning=bot_reasoning,
     )
 
 
